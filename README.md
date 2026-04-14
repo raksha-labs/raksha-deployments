@@ -72,3 +72,12 @@ Build static output:
 ```bash
 mkdocs build
 ```
+
+## CI
+
+GitHub Actions in this repo should run:
+
+- `yamllint` on catalog and environment manifests
+- manifest consistency validation
+- `mkdocs build --strict`
+- manual promotion PR creation for `dev`, `stage`, and `prod`

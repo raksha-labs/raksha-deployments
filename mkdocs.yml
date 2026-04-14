@@ -9,6 +9,7 @@ nav:
   - Service Catalog: service-catalog.md
   - Environments: environments.md
   - Release Model: release-model.md
+  - GitHub Setup: github-setup.md
 
 markdown_extensions:
   - admonition

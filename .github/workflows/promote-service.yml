@@ -1,0 +1,65 @@
+name: Promote Service
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        required: true
+        options:
+          - dev
+          - stage
+          - prod
+      service:
+        description: Service key from catalog/services.yaml
+        type: string
+        required: true
+      image_tag:
+        description: Image tag to promote
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  promote:
+    name: Create promotion PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Update manifest
+        run: >
+          python scripts/promote_service.py
+          --environment ${{ inputs.environment }}
+          --service ${{ inputs.service }}
+          --image-tag ${{ inputs.image_tag }}
+
+      - name: Validate manifests
+        run: python scripts/validate_manifests.py
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "Promote ${{ inputs.service }} to ${{ inputs.image_tag }} in ${{ inputs.environment }}"
+          title: "Promote ${{ inputs.service }} in ${{ inputs.environment }} to ${{ inputs.image_tag }}"
+          body: |
+            Automated promotion request.
+
+            - Environment: `${{ inputs.environment }}`
+            - Service: `${{ inputs.service }}`
+            - Image tag: `${{ inputs.image_tag }}`
+          branch: promote/${{ inputs.environment }}/${{ inputs.service }}-${{ inputs.image_tag }}
