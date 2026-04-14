@@ -1,0 +1,44 @@
+version: 1
+environment: stage
+services:
+  platform-api:
+    image_tag: stage-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: stage
+
+  platform-control:
+    image_tag: stage-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: stage
+
+  platform-portal:
+    image_tag: stage-approved
+    desired_count: 2
+    strategy: blue_green
+    config_profile: stage
+
+  platform-admin:
+    image_tag: stage-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: stage
+
+  event-gateway:
+    image_tag: stage-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: stage
+
+  engine:
+    image_tag: stage-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: stage
+
+  notifier-gateway:
+    image_tag: stage-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: stage

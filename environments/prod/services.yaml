@@ -1,0 +1,44 @@
+version: 1
+environment: prod
+services:
+  platform-api:
+    image_tag: prod-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: prod
+
+  platform-control:
+    image_tag: prod-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: prod
+
+  platform-portal:
+    image_tag: prod-approved
+    desired_count: 2
+    strategy: blue_green
+    config_profile: prod
+
+  platform-admin:
+    image_tag: prod-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: prod
+
+  event-gateway:
+    image_tag: prod-approved
+    desired_count: 3
+    strategy: rolling
+    config_profile: prod
+
+  engine:
+    image_tag: prod-approved
+    desired_count: 3
+    strategy: rolling
+    config_profile: prod
+
+  notifier-gateway:
+    image_tag: prod-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: prod

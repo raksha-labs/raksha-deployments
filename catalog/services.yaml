@@ -1,0 +1,50 @@
+version: 1
+services:
+  - name: platform-api
+    source_repo: raksha-platform
+    image_repo: raksha-api-service
+    deploy_group: control-plane
+    rollout_order: 10
+    default_strategy: rolling
+
+  - name: platform-control
+    source_repo: raksha-platform
+    image_repo: raksha-control-service
+    deploy_group: control-plane
+    rollout_order: 20
+    default_strategy: rolling
+
+  - name: platform-portal
+    source_repo: raksha-platform
+    image_repo: raksha-raksha-portal
+    deploy_group: control-plane
+    rollout_order: 30
+    default_strategy: blue_green
+
+  - name: platform-admin
+    source_repo: raksha-platform
+    image_repo: raksha-raksha-admin
+    deploy_group: control-plane
+    rollout_order: 40
+    default_strategy: rolling
+
+  - name: event-gateway
+    source_repo: raksha-event-gateway
+    image_repo: raksha-event-gateway
+    deploy_group: runtime
+    rollout_order: 50
+    default_strategy: rolling
+
+  - name: engine
+    source_repo: raksha-engine
+    image_repo: raksha-engine
+    deploy_group: runtime
+    rollout_order: 60
+    default_strategy: rolling
+
+  - name: notifier-gateway
+    source_repo: raksha-notifier-gateway
+    image_repo: raksha-notifier-gateway
+    deploy_group: runtime
+    rollout_order: 70
+    default_strategy: rolling

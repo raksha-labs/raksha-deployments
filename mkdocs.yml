@@ -1,0 +1,17 @@
+site_name: Raksha Deployments
+site_description: Environment deployment state and promotion model for Raksha services
+repo_name: raksha-labs/raksha-deployments
+theme:
+  name: mkdocs
+
+nav:
+  - Home: index.md
+  - Service Catalog: service-catalog.md
+  - Environments: environments.md
+  - Release Model: release-model.md
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true

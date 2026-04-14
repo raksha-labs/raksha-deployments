@@ -1,0 +1,44 @@
+version: 1
+environment: dev
+services:
+  platform-api:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  platform-control:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  platform-portal:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  platform-admin:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  event-gateway:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  engine:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  notifier-gateway:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
