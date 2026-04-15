@@ -1,44 +1,47 @@
 version: 1
 environment: stage
 services:
+  # Stage runs a single task per service — it's pre-prod verification,
+  # not a high-availability environment. Bump to 2 only when validating
+  # rolling-deploy behaviour for a specific release.
   platform-api:
     image_tag: stage-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: stage
 
   platform-control:
     image_tag: stage-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: stage
 
   platform-portal:
     image_tag: stage-approved
-    desired_count: 2
+    desired_count: 1
     strategy: blue_green
     config_profile: stage
 
   platform-admin:
     image_tag: stage-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: stage
 
   event-gateway:
     image_tag: stage-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: stage
 
   engine:
     image_tag: stage-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: stage
 
   notifier-gateway:
     image_tag: stage-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: stage

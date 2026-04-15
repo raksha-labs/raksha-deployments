@@ -1,0 +1,50 @@
+# Event-gateway configuration for the local-stack.
+# Leans on Rust struct defaults (every section is `#[serde(default)]`);
+# only non-default fields are explicit here.
+
+partition_tag = ""
+shutdown_timeout_secs = 30
+
+[database]
+url = "postgres://raksha:raksha@postgres:5432/raksha_gateway"
+
+[raw_database]
+url = "postgres://raksha:raksha@postgres:5432/raksha_gateway_raw"
+max_connections = 4
+
+[transport]
+backend = "redis"
+route_prefix = "raksha"
+
+[transport.redis]
+url = "redis://redis:6379"
+
+[health]
+enabled = true
+port = 8080
+
+[observability]
+enabled = true
+bind_address = "0.0.0.0:9090"
+
+[config_source]
+endpoint = "http://control-plane:50051"
+tenant_id = "00000000-0000-0000-0000-000000000001"
+peer_token = "dev-peer-token-event-gateway"
+peer_name = "event-gateway"
+
+# Cold-tier archive via MinIO (S3 API compatible). Flip enabled=false to
+# disable if you don't want the archive sink spinning in local.
+[archive]
+enabled = true
+bucket = "raksha-events"
+prefix = "events"
+batch_max_events = 500
+batch_max_age_ms = 10000
+channel_capacity = 2000
+
+[hot_ttl]
+enabled = true
+retention_hours = 24
+sweep_interval_secs = 600
+batch_size = 1000

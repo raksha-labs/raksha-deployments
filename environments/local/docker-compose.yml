@@ -1,0 +1,229 @@
+# =========================================================================
+# Raksha Labs local stack
+# =========================================================================
+# Single-command bring-up of the full system:
+#   postgres (shared)     → one instance, multiple DBs, schemas loaded at init
+#   redis                 → event + alert stream transport
+#   minio                 → S3-compatible store for event-gateway cold archive
+#   minio-init            → one-shot bucket + 7d lifecycle creation
+#   control-plane         → NestJS REST + gRPC ConfigWatch (:3001, :50051)
+#   engine                → DSL rule engine, subscribes to ConfigWatch
+#   event-gateway         → ingestion, subscribes to ConfigWatch, archives to MinIO
+#   notifier-gateway      → drains alerts stream, dispatches per-tenant channels
+#
+# Build contexts use `..` (raksha-labs/) so Rust `path =` deps resolve.
+# =========================================================================
+
+name: raksha-local
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: raksha
+      POSTGRES_PASSWORD: raksha
+      POSTGRES_DB: raksha_control
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+      - ../../../raksha-control-plane/db/schema:/schemas/control-plane:ro
+      - ../../../raksha-event-gateway/sql:/schemas/event-gateway:ro
+      - ../../../raksha-notifier-gateway/infra/local/init-db:/schemas/notifier:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raksha -d raksha_control"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: raksha
+      MINIO_ROOT_PASSWORD: rakshadevsecret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 raksha rakshadevsecret &&
+      mc mb --ignore-existing local/raksha-events &&
+      echo '{\"Rules\":[{\"ID\":\"raksha-events-7d\",\"Status\":\"Enabled\",\"Filter\":{\"Prefix\":\"events/\"},\"Expiration\":{\"Days\":7}}]}' > /tmp/lc.json &&
+      mc ilm import local/raksha-events < /tmp/lc.json || true &&
+      echo 'minio init complete'
+      "
+    restart: "no"
+
+  control-plane:
+    build:
+      context: ../../..
+      dockerfile: raksha-deployments/environments/local/dockerfiles/control-plane.Dockerfile
+    environment:
+      NODE_ENV: development
+      BACKEND_PORT: 3001
+      BACKEND_HOST: 0.0.0.0
+      GRPC_PORT: 50051
+      GRPC_HOST: 0.0.0.0
+      DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_control
+      DATABASE_POOL_SIZE: 10
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3002
+      INTERNAL_SERVICE_TOKEN: dev-service-token-local
+      PEER_TOKEN_ENGINE: dev-peer-token-engine
+      PEER_TOKEN_EVENT_GATEWAY: dev-peer-token-event-gateway
+      PEER_TOKEN_NOTIFIER_GATEWAY: dev-peer-token-notifier-gateway
+      CONFIG_WATCH_PROTO_PATH: /proto/raksha/control/v1/config_watch.proto
+    ports:
+      - "3001:3001"
+      - "50051:50051"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3001/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+  engine:
+    build:
+      context: ../../..
+      dockerfile: raksha-deployments/environments/local/dockerfiles/engine.Dockerfile
+    environment:
+      RUST_LOG: info
+    volumes:
+      - ./configs/engine.toml:/app/config.toml:ro
+      - engine-data:/data
+    ports:
+      - "9091:9090"
+    depends_on:
+      redis:
+        condition: service_healthy
+      control-plane:
+        condition: service_healthy
+    restart: unless-stopped
+
+  event-gateway:
+    build:
+      context: ../../..
+      dockerfile: raksha-deployments/environments/local/dockerfiles/event-gateway.Dockerfile
+    environment:
+      RUST_LOG: info
+      # S3 credentials for MinIO — standard AWS SDK env vars.
+      AWS_ACCESS_KEY_ID: raksha
+      AWS_SECRET_ACCESS_KEY: rakshadevsecret
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT_URL_S3: http://minio:9000
+      AWS_ENDPOINT_URL: http://minio:9000
+    volumes:
+      - ./configs/event-gateway.toml:/app/config.toml:ro
+    ports:
+      - "8080:8080"
+      - "9092:9090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      control-plane:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notifier-gateway:
+    build:
+      context: ../../..
+      dockerfile: raksha-deployments/environments/local/dockerfiles/notifier-gateway.Dockerfile
+    environment:
+      RUST_LOG: info
+      DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_notifier
+      REDIS_URL: redis://redis:6379
+      HEALTH_CHECK_PORT: "8080"
+    volumes:
+      - ./configs/notifier-gateway.toml:/app/config.toml:ro
+    ports:
+      - "8082:8080"
+      - "9093:9090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  portal:
+    build:
+      context: ../../..
+      dockerfile: raksha-deployments/environments/local/dockerfiles/nextjs-app.Dockerfile
+      args:
+        APP_NAME: portal
+        APP_PORT: "3000"
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      control-plane:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: ../../..
+      dockerfile: raksha-deployments/environments/local/dockerfiles/nextjs-app.Dockerfile
+      args:
+        APP_NAME: admin
+        APP_PORT: "3002"
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
+    ports:
+      - "3002:3002"
+    depends_on:
+      control-plane:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3002 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  engine-data:

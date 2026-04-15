@@ -25,15 +25,18 @@ services:
     strategy: rolling
     config_profile: prod
 
+  # Runtime services — baseline 2 tasks; ECS target-tracking autoscaling
+  # scales up on CPU + queue-depth metrics. Do NOT set floor below 2 in
+  # prod: lease coordination needs at least one survivor during deploys.
   event-gateway:
     image_tag: prod-approved
-    desired_count: 3
+    desired_count: 2
     strategy: rolling
     config_profile: prod
 
   engine:
     image_tag: prod-approved
-    desired_count: 3
+    desired_count: 2
     strategy: rolling
     config_profile: prod
 

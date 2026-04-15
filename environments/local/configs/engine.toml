@@ -1,0 +1,45 @@
+# Engine configuration inside the local-stack docker network.
+
+[source]
+connector_type = "redis"
+
+[source.redis]
+url = "redis://redis:6379"
+stream_key = "raksha:events:inbound"
+group_name = "raksha-engine"
+consumer_name = "worker-0"
+batch_size = 100
+block_ms = 2000
+max_len = 100000
+
+[sink]
+connector_type = "redis"
+
+[sink.redis]
+url = "redis://redis:6379"
+stream_key = "raksha:alerts:outbound"
+max_len = 10000
+
+[context_window]
+default_ttl_secs = 300
+eviction_interval_ms = 1000
+max_events_per_key = 1000
+max_total_live_events = 100000
+max_partitions = 10000
+
+[engine]
+worker_count = 2
+shutdown_timeout_secs = 10
+rule_state_retention_secs = 3600
+max_rule_states = 100000
+
+[observability]
+enable_http_server = true
+bind_address = "0.0.0.0:9090"
+
+[config_source]
+endpoint = "http://control-plane:50051"
+tenant_id = "00000000-0000-0000-0000-000000000001"
+peer_token = "dev-peer-token-engine"
+version_store_path = "/data/version-store"
+peer_name = "engine"
