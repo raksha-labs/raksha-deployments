@@ -18,7 +18,7 @@ It defines deployment metadata shared across environments, including:
 The initial catalog covers:
 
 - control-plane services from `raksha-platform`
-- runtime services from `raksha-event-gateway`
+- runtime services from `raksha-ingestion-gateway`
 - runtime services from `raksha-engine`
 - runtime services from `raksha-notifier-gateway`
 

@@ -6,7 +6,7 @@ This repository is the reviewed record of what is deployed in each environment.
 
 ## Flow
 
-1. Service CI in `raksha-platform`, `raksha-event-gateway`, `raksha-engine`, or `raksha-notifier-gateway` publishes an image.
+1. Service CI in `raksha-platform`, `raksha-ingestion-gateway`, `raksha-engine`, or `raksha-notifier-gateway` publishes an image.
 2. A PR updates the matching `environments/<env>/services.yaml` file.
 3. Review verifies:
    - image version

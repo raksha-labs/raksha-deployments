@@ -29,8 +29,8 @@ services:
     default_strategy: rolling
 
   - name: event-gateway
-    source_repo: raksha-event-gateway
-    image_repo: raksha-event-gateway
+    source_repo: raksha-ingestion-gateway
+    image_repo: raksha-ingestion-gateway
     deploy_group: runtime
     rollout_order: 50
     default_strategy: rolling

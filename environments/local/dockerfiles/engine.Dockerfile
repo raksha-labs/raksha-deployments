@@ -1,5 +1,5 @@
 # Build context expected at the raksha-labs/ root so the Cargo
-# `path = "../raksha-message-contracts"` dependency resolves.
+# `path = "../raksha-contracts"` dependency resolves.
 
 FROM rust:1.91-bookworm AS builder
 
@@ -10,7 +10,7 @@ RUN apt-get update && \
 WORKDIR /build
 
 # Copy everything needed to compile — workspace-local deps + this crate.
-COPY raksha-message-contracts ./raksha-message-contracts
+COPY raksha-contracts ./raksha-contracts
 COPY raksha-engine           ./raksha-engine
 
 WORKDIR /build/raksha-engine

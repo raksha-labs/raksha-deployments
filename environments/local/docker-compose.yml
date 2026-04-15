@@ -29,7 +29,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d:ro
       - ../../../raksha-control-plane/db/schema:/schemas/control-plane:ro
-      - ../../../raksha-event-gateway/sql:/schemas/event-gateway:ro
+      - ../../../raksha-ingestion-gateway/sql:/schemas/event-gateway:ro
       - ../../../raksha-notifier-gateway/infra/local/init-db:/schemas/notifier:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U raksha -d raksha_control"]
@@ -100,11 +100,20 @@ services:
       PEER_TOKEN_EVENT_GATEWAY: dev-peer-token-event-gateway
       PEER_TOKEN_NOTIFIER_GATEWAY: dev-peer-token-notifier-gateway
       CONFIG_WATCH_PROTO_PATH: /proto/raksha/control/v1/config_watch.proto
+      # Alert bus — must match raksha-engine's redis_sink.stream_key and
+      # whatever engine.toml tells it to XADD into.
+      ALERT_BUS_KIND: redis
+      REDIS_URL: redis://redis:6379
+      ALERT_STREAM_KEY: raksha:alerts:outbound
+      ALERT_CONSUMER_GROUP: control-plane
+      ALERT_CONSUMER_NAME: control-plane-0
     ports:
       - "3001:3001"
       - "50051:50051"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3001/healthz >/dev/null || exit 1"]
@@ -135,6 +144,7 @@ services:
     build:
       context: ../../..
       dockerfile: raksha-deployments/environments/local/dockerfiles/event-gateway.Dockerfile
+      target: gateway
     environment:
       RUST_LOG: info
       # S3 credentials for MinIO — standard AWS SDK env vars.
@@ -155,6 +165,30 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      control-plane:
+        condition: service_healthy
+    restart: unless-stopped
+
+  event-gateway-test-console:
+    build:
+      context: ../../..
+      dockerfile: raksha-deployments/environments/local/dockerfiles/event-gateway.Dockerfile
+      target: test-console
+    environment:
+      RUST_LOG: info
+      REDIS_URL: redis://redis:6379
+      CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_control
+      TEST_CONSOLE_PORT: "9094"
+      MOCK_BASE_URL: http://event-gateway-test-console:9094
+      DEFAULT_TENANT_ID: "00000000-0000-0000-0000-000000000001"
+      STREAM_ROUTE_PREFIX: raksha
+    ports:
+      - "9094:9094"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       control-plane:
         condition: service_healthy
     restart: unless-stopped
@@ -188,6 +222,24 @@ services:
         APP_NAME: portal
         APP_PORT: "3000"
         NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
+    environment:
+      # Signs dev session cookies. Must be ≥32 chars. Never reuse in prod.
+      RAKSHA_WEB_SESSION_SECRET: raksha-local-dev-session-secret-32chars
+      # Mints a dev session for the seed tenant on any unauthenticated
+      # request. See middleware.ts for details. NEVER set in staging/prod.
+      RAKSHA_DEV_AUTOLOGIN: "true"
+      RAKSHA_DEV_TENANT_ID: "00000000-0000-0000-0000-000000000001"
+      RAKSHA_DEV_USER_SUB: "00000000-0000-0000-0000-0000000000aa"
+      RAKSHA_DEV_USER_EMAIL: dev@raksha.local
+      # Dev over HTTP — bypass secure-cookie requirement.
+      RAKSHA_WEB_SECURE_COOKIES: "false"
+      # BFF targets — portal's Next.js /api/* route handlers forward
+      # browser calls to control-plane using the service token for
+      # trusted-proxy auth (see SessionGuard in control-plane).
+      API_SERVICE_URL: http://control-plane:3001
+      CONTROL_SERVICE_URL: http://control-plane:3001
+      RAKSHA_API_KEY: dev-service-token-local
+      AUTH_INTERNAL_SERVICE_TOKEN: dev-service-token-local
     ports:
       - "3000:3000"
     depends_on:
@@ -209,6 +261,14 @@ services:
         APP_NAME: admin
         APP_PORT: "3002"
         NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
+    environment:
+      RAKSHA_ADMIN_SESSION_SECRET: raksha-local-admin-session-secret-32chars
+      RAKSHA_ADMIN_DEV_AUTOLOGIN: "true"
+      RAKSHA_ADMIN_DEV_TOKEN: dev-service-token-local
+      RAKSHA_ADMIN_SECURE_COOKIES: "false"
+      ADMIN_API_BASE_URL: http://control-plane:3001
+      RAKSHA_API_KEY: dev-service-token-local
+      AUTH_INTERNAL_SERVICE_TOKEN: dev-service-token-local
     ports:
       - "3002:3002"
     depends_on:
