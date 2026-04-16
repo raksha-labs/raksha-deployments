@@ -61,4 +61,9 @@ load_schema_file "raksha_notifier" "/schemas/notifier/schema.sql"
 create_db "raksha_gateway"
 load_schema_file "raksha_gateway" "/schemas/gateway/schema.sql"
 
+# Raw-envelope landing DB: same schema, separate database so hot-tier
+# retention (7d in local) can be wiped without touching gateway metadata.
+create_db "raksha_gateway_raw"
+load_schema_file "raksha_gateway_raw" "/schemas/gateway/schema.sql"
+
 echo "[bootstrap] all databases initialized"

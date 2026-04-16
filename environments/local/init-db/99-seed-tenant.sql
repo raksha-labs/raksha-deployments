@@ -6,7 +6,7 @@
 --   Tenant:  00000000-0000-0000-0000-000000000001
 --   User:    00000000-0000-0000-0000-0000000000aa  (owner of that tenant)
 
-\c raksha_control
+\c raksha_portal
 
 INSERT INTO tenants.plans (plan_id, display_name, is_public, description)
 VALUES ('free', 'Free', false, 'Local dev plan')
