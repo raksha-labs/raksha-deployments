@@ -105,8 +105,8 @@ services:
 
   rule-control-api:
     build:
-      context: ../../..
-      dockerfile: raksha-engine/apps/rule-control-api/Dockerfile
+      context: ../../../raksha-engine
+      dockerfile: apps/rule-control-api/Dockerfile
     environment:
       RULE_CONTROL_LISTEN_ADDR: ":8082"
       RULE_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_engine?sslmode=disable
@@ -153,8 +153,8 @@ services:
 
   alert-control-api:
     build:
-      context: ../../..
-      dockerfile: raksha-notifier-gateway/apps/alert-control-api/Dockerfile
+      context: ../../../raksha-notifier-gateway
+      dockerfile: apps/alert-control-api/Dockerfile
     environment:
       ALERT_CONTROL_LISTEN_ADDR: ":8083"
       ALERT_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_notifier?sslmode=disable
@@ -207,6 +207,8 @@ services:
     environment:
       STREAM_CONTROL_LISTEN_ADDR: ":8081"
       STREAM_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_gateway?sslmode=disable
+      # Evidence fetch: reads source_envelopes from the hot-tier raw DB.
+      STREAM_CONTROL_RAW_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_gateway_raw?sslmode=disable
       STREAM_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-event-gateway
     ports:
       - "8087:8081"
@@ -214,7 +216,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/healthz"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/healthz"]
       interval: 10s
       timeout: 3s
       retries: 20
