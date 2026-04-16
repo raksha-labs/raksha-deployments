@@ -1,0 +1,48 @@
+# Reusable: Terraform fmt + init(no-backend) + validate.
+#
+# Usage:
+#   jobs:
+#     terraform:
+#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-terraform.yml@main
+#       with:
+#         working-directory: infra/terraform
+
+name: reusable-terraform
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        type: string
+        default: infra/terraform
+      terraform-version:
+        type: string
+        default: "1.6.6"
+      runs-on:
+        type: string
+        default: ubuntu-latest
+
+jobs:
+  terraform:
+    name: Terraform Validate
+    runs-on: ${{ inputs.runs-on }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+
+      - name: Format check
+        run: terraform fmt -check -recursive ${{ inputs.working-directory }}
+
+      - name: Init (no backend)
+        working-directory: ${{ inputs.working-directory }}
+        run: terraform init -backend=false
+
+      - name: Validate
+        working-directory: ${{ inputs.working-directory }}
+        run: terraform validate

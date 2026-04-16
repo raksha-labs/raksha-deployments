@@ -1,0 +1,151 @@
+# Reusable: build (and optionally push) one Docker image.
+#
+# - When push=false (default): smoke-builds the image — used by PR CI to
+#   catch Dockerfile/dist regressions.
+# - When push=true: assumes-AWS-role, ensures the ECR repo exists, builds
+#   and pushes with both the supplied tag and the commit sha.
+#
+# Build context: the repo's root by default. Most consumer repos depend on
+# raksha-contracts at build time — set checkout-contracts: true to clone it
+# alongside the consumer repo so multi-repo Dockerfiles (e.g. portal-backend
+# + alert-control-api) resolve their COPYs.
+#
+# Usage (PR build, no push):
+#   jobs:
+#     image:
+#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-docker-build.yml@main
+#       with:
+#         image-name: raksha-portal-backend
+#         dockerfile: raksha-deployments/environments/local/dockerfiles/portal-backend.Dockerfile
+#         consumer-repo-name: raksha-portal
+#         checkout-contracts: true
+#         checkout-deployments: true
+#       secrets:
+#         CROSS_REPO_READ_TOKEN: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+
+name: reusable-docker-build
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: "ECR repo name (without registry prefix)."
+        type: string
+        required: true
+      dockerfile:
+        description: "Path to the Dockerfile from the workflow workspace root."
+        type: string
+        required: true
+      build-context:
+        description: "Build context. Defaults to '.' (the workflow workspace root)."
+        type: string
+        default: "."
+      build-args:
+        description: "Multi-line BUILD_ARG=value entries (one per line)."
+        type: string
+        default: ""
+      push:
+        description: "Push to ECR after build. Requires AWS_INFRA_ROLE_ARN secret."
+        type: boolean
+        default: false
+      tag:
+        description: "Image tag when push=true. Always also tagged with the commit sha."
+        type: string
+        default: "latest"
+      consumer-repo-name:
+        description: "Path to checkout the calling repo into (e.g. 'raksha-portal'). Empty = checkout into '.'."
+        type: string
+        default: ""
+      checkout-contracts:
+        description: "Also clone raksha-contracts under './raksha-contracts'."
+        type: boolean
+        default: false
+      checkout-deployments:
+        description: "Also clone raksha-deployments under './raksha-deployments' (needed when dockerfile lives there)."
+        type: boolean
+        default: false
+      aws-region:
+        type: string
+        default: "eu-west-1"
+      runs-on:
+        type: string
+        default: ubuntu-latest
+    secrets:
+      CROSS_REPO_READ_TOKEN:
+        required: false
+      AWS_INFRA_ROLE_ARN:
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    name: ${{ inputs.image-name }}${{ inputs.push && ' (push)' || ' (no push)' }}
+    runs-on: ${{ inputs.runs-on }}
+
+    steps:
+      - name: Checkout consumer repo
+        uses: actions/checkout@v4
+        with:
+          path: ${{ inputs.consumer-repo-name }}
+
+      - name: Checkout contracts
+        if: ${{ inputs.checkout-contracts }}
+        uses: actions/checkout@v4
+        with:
+          repository: raksha-labs/raksha-contracts
+          ref: master
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+          fetch-depth: 1
+          path: raksha-contracts
+
+      - name: Checkout deployments
+        if: ${{ inputs.checkout-deployments }}
+        uses: actions/checkout@v4
+        with:
+          repository: raksha-labs/raksha-deployments
+          ref: main
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+          fetch-depth: 1
+          path: raksha-deployments
+
+      - name: Configure AWS credentials
+        if: ${{ inputs.push }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Login to ECR
+        if: ${{ inputs.push }}
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Ensure ECR repository exists
+        if: ${{ inputs.push }}
+        run: |
+          set -eu
+          aws ecr describe-repositories --repository-names "${{ inputs.image-name }}" >/dev/null 2>&1 || \
+            aws ecr create-repository \
+              --repository-name "${{ inputs.image-name }}" \
+              --image-tag-mutability IMMUTABLE \
+              --image-scanning-configuration scanOnPush=true \
+              --encryption-configuration encryptionType=AES256 >/dev/null
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build${{ inputs.push && ' and push' || '' }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.build-context }}
+          file: ${{ inputs.dockerfile }}
+          push: ${{ inputs.push }}
+          build-args: ${{ inputs.build-args }}
+          tags: |
+            ${{ inputs.push && format('{0}/{1}:{2}', steps.ecr-login.outputs.registry, inputs.image-name, inputs.tag) || format('{0}:ci', inputs.image-name) }}
+            ${{ inputs.push && format('{0}/{1}:{2}', steps.ecr-login.outputs.registry, inputs.image-name, github.sha) || '' }}
+          cache-from: type=gha,scope=${{ inputs.image-name }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.image-name }}

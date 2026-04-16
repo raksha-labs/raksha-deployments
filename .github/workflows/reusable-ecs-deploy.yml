@@ -1,0 +1,131 @@
+# Reusable: terraform apply + ECS force-new-deployment for a project.
+#
+# A "project" maps 1:1 to a repo's infra/terraform/ tree (raksha-portal,
+# raksha-engine, raksha-notifier-gateway, raksha-ingestion-gateway). The
+# state key is "${project-name}/${environment}/terraform.tfstate".
+#
+# Usage:
+#   jobs:
+#     deploy:
+#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-ecs-deploy.yml@main
+#       with:
+#         project-name: raksha-portal
+#         environment: stage
+#         services: "portal-backend portal admin"
+#         tf-vars: |
+#           portal_backend_image_tag=${{ inputs.image_tag }}
+#           portal_image_tag=${{ inputs.image_tag }}
+#           admin_image_tag=${{ inputs.image_tag }}
+#           vpc_id=${{ vars.RAKSHA_PORTAL_VPC_ID }}
+#       secrets:
+#         AWS_INFRA_ROLE_ARN: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+#         TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
+#         TF_BACKEND_DYNAMODB_TABLE: ${{ secrets.TF_BACKEND_DYNAMODB_TABLE }}
+
+name: reusable-ecs-deploy
+
+on:
+  workflow_call:
+    inputs:
+      project-name:
+        description: "Project key (raksha-portal, raksha-engine, …). Used in the tfstate key and the ECS cluster/service names."
+        type: string
+        required: true
+      environment:
+        description: "Target environment (test, stage, prod, …)."
+        type: string
+        required: true
+      services:
+        description: "Space-separated short names of services in this project (e.g. 'portal-backend portal admin'). Each becomes 'raksha-${name}-${environment}' for ECS update-service."
+        type: string
+        required: true
+      tf-vars:
+        description: "Multi-line list of name=value, one per line, passed as -var to terraform apply."
+        type: string
+        default: ""
+      working-directory:
+        type: string
+        default: infra/terraform
+      terraform-version:
+        type: string
+        default: "1.6.6"
+      aws-region:
+        type: string
+        default: "eu-west-1"
+      runs-on:
+        type: string
+        default: ubuntu-latest
+    secrets:
+      AWS_INFRA_ROLE_ARN:
+        required: true
+      TF_BACKEND_BUCKET:
+        required: true
+      TF_BACKEND_DYNAMODB_TABLE:
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    name: Deploy ${{ inputs.project-name }} → ${{ inputs.environment }}
+    runs-on: ${{ inputs.runs-on }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+
+      - name: Terraform init
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          terraform init \
+            -input=false \
+            -reconfigure \
+            -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}" \
+            -backend-config="key=${{ inputs.project-name }}/${{ inputs.environment }}/terraform.tfstate" \
+            -backend-config="region=${{ inputs.aws-region }}" \
+            -backend-config="dynamodb_table=${{ secrets.TF_BACKEND_DYNAMODB_TABLE }}" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform apply
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          TF_VAR_environment: ${{ inputs.environment }}
+          TF_VAR_aws_region: ${{ inputs.aws-region }}
+        run: |
+          set -eu
+          extra_args=()
+          while IFS= read -r line; do
+            line="${line#"${line%%[![:space:]]*}"}"   # trim leading
+            line="${line%"${line##*[![:space:]]}"}"   # trim trailing
+            [ -z "$line" ] && continue
+            extra_args+=(-var="$line")
+          done <<< "${{ inputs.tf-vars }}"
+          terraform apply -auto-approve -input=false "${extra_args[@]}"
+
+      - name: Force new ECS deployments
+        run: |
+          set -eu
+          CLUSTER="${{ inputs.project-name }}-${{ inputs.environment }}"
+          for svc in ${{ inputs.services }}; do
+            SERVICE="raksha-${svc}-${{ inputs.environment }}"
+            echo "→ Deploying $SERVICE on cluster $CLUSTER"
+            aws ecs update-service \
+              --cluster "$CLUSTER" \
+              --service "$SERVICE" \
+              --force-new-deployment \
+              --query 'service.deployments[0].{status:status,desired:desiredCount,running:runningCount}' \
+              --output table
+          done

@@ -1,0 +1,90 @@
+# Reusable: Rust CI — fmt, clippy, test for a Cargo workspace.
+#
+# Usage from a consumer repo (raksha-engine, raksha-notifier-gateway, …):
+#
+#   jobs:
+#     rust:
+#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-rust-ci.yml@main
+#       with:
+#         workspace-path: "."           # default: repo root
+#         toolchain: stable             # default: stable
+#         needs-contracts: false        # set true to also clone raksha-contracts
+#       secrets:
+#         CROSS_REPO_READ_TOKEN: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+
+name: reusable-rust-ci
+
+on:
+  workflow_call:
+    inputs:
+      workspace-path:
+        description: "Path (relative to repo root) of the Cargo workspace."
+        type: string
+        default: "."
+      toolchain:
+        description: "Rust toolchain (stable, beta, nightly, or pinned version)."
+        type: string
+        default: "stable"
+      needs-contracts:
+        description: "Also checkout raksha-contracts alongside (path = ../raksha-contracts)."
+        type: boolean
+        default: false
+      runs-on:
+        type: string
+        default: ubuntu-latest
+    secrets:
+      CROSS_REPO_READ_TOKEN:
+        required: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust ${{ inputs.toolchain }}
+    runs-on: ${{ inputs.runs-on }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: ${{ inputs.needs-contracts && github.event.repository.name || '' }}
+
+      - name: Checkout contracts
+        if: ${{ inputs.needs-contracts }}
+        uses: actions/checkout@v4
+        with:
+          repository: raksha-labs/raksha-contracts
+          ref: master
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+          fetch-depth: 1
+          path: raksha-contracts
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ inputs.toolchain }}
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ inputs.needs-contracts && format('{0}/target', github.event.repository.name) || 'target' }}
+          key: ${{ runner.os }}-cargo-${{ inputs.toolchain }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ inputs.toolchain }}-
+
+      - name: Format check
+        working-directory: ${{ inputs.needs-contracts && github.event.repository.name || inputs.workspace-path }}
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: ${{ inputs.needs-contracts && github.event.repository.name || inputs.workspace-path }}
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        working-directory: ${{ inputs.needs-contracts && github.event.repository.name || inputs.workspace-path }}
+        run: cargo test --workspace

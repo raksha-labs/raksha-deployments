@@ -1,0 +1,98 @@
+# Single dispatch entry point: pick a deploy_group + environment + tag,
+# this workflow looks up the catalog, then triggers each owning repo's
+# deploy.yml in rollout_order. Use this when you want to roll a whole
+# bounded context at once instead of running each repo's deploy by hand.
+#
+# Each consumer repo's deploy.yml MUST accept three workflow_dispatch
+# inputs: environment (string), image_tag (string), build_image (boolean).
+# Triggering uses GitHub's REST API via gh.
+
+name: Dispatch deploy (group)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - test
+          - stage
+          - prod
+      deploy_group:
+        description: "Bounded context to roll. 'all' = every group in catalog rollout_order."
+        required: true
+        type: choice
+        options:
+          - all
+          - portal
+          - detection
+          - delivery
+          - ingestion
+      image_tag:
+        description: Image tag (typically the commit sha, or 'latest' for non-prod)
+        required: true
+        type: string
+        default: latest
+      build_image:
+        description: Build & push images first (set false to redeploy an existing tag)
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    name: Dispatch to consumer repos
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout deployments
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pyyaml
+        run: pip install pyyaml
+
+      - name: Compute repo list (from catalog, in rollout_order)
+        id: repos
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os, yaml, json
+          catalog = yaml.safe_load(open("catalog/services.yaml"))
+          group = "${{ inputs.deploy_group }}"
+          services = catalog["services"]
+          if group != "all":
+              services = [s for s in services if s["deploy_group"] == group]
+          services.sort(key=lambda s: s["rollout_order"])
+          # One unique source_repo per row, preserving rollout order.
+          seen, repos = set(), []
+          for s in services:
+              if s["source_repo"] not in seen:
+                  seen.add(s["source_repo"])
+                  repos.append(s["source_repo"])
+          print("repos=" + json.dumps(repos))
+          PY
+
+      - name: Trigger each consumer repo's deploy.yml
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
+        run: |
+          set -eu
+          repos='${{ steps.repos.outputs.repos }}'
+          echo "==> dispatching deploy to: $repos"
+          for repo in $(echo "$repos" | python3 -c 'import json,sys; print(" ".join(json.load(sys.stdin)))'); do
+            echo "→ raksha-labs/$repo"
+            gh workflow run deploy.yml \
+              --repo "raksha-labs/$repo" \
+              -f environment='${{ inputs.environment }}' \
+              -f image_tag='${{ inputs.image_tag }}' \
+              -f build_image='${{ inputs.build_image }}'
+          done

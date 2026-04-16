@@ -1,0 +1,109 @@
+# Reusable: pnpm monorepo CI — install, typecheck, test, build.
+# Optionally spins up a Postgres service for repos whose tests need a DB.
+#
+# Usage (raksha-portal):
+#   jobs:
+#     node:
+#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-pnpm-ci.yml@main
+#       with:
+#         node-version: "20.10.0"
+#         pnpm-version: "9"
+#         needs-postgres: true
+#         db-name: raksha_portal
+#         db-setup-script: "db:setup"
+#         db-seed-script: "db:seed"
+
+name: reusable-pnpm-ci
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        default: "20.10.0"
+      pnpm-version:
+        type: string
+        default: "9"
+      needs-postgres:
+        type: boolean
+        default: false
+      db-name:
+        type: string
+        default: "ci_dryrun"
+      db-setup-script:
+        description: "package.json script that loads schema (skip if empty)."
+        type: string
+        default: ""
+      db-seed-script:
+        description: "package.json script that seeds dev data (skip if empty)."
+        type: string
+        default: ""
+      typecheck-script:
+        type: string
+        default: "typecheck"
+      test-script:
+        type: string
+        default: "test"
+      build-script:
+        type: string
+        default: "build"
+      runs-on:
+        type: string
+        default: ubuntu-latest
+
+jobs:
+  node:
+    name: Node ${{ inputs.node-version }}
+    runs-on: ${{ inputs.runs-on }}
+
+    services:
+      postgres:
+        image: ${{ inputs.needs-postgres && 'postgres:16' || '' }}
+        env:
+          POSTGRES_USER: raksha
+          POSTGRES_PASSWORD: raksha
+          POSTGRES_DB: ${{ inputs.db-name }}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U raksha -d ${{ inputs.db-name }}"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://raksha:raksha@localhost:5432/${{ inputs.db-name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: ${{ inputs.pnpm-version }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm ${{ inputs.typecheck-script }}
+
+      - name: DB setup
+        if: ${{ inputs.needs-postgres && inputs.db-setup-script != '' }}
+        run: pnpm ${{ inputs.db-setup-script }}
+
+      - name: DB seed
+        if: ${{ inputs.needs-postgres && inputs.db-seed-script != '' }}
+        run: pnpm ${{ inputs.db-seed-script }}
+
+      - name: Test
+        run: pnpm ${{ inputs.test-script }}
+
+      - name: Build
+        run: pnpm ${{ inputs.build-script }}
