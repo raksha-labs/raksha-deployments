@@ -105,8 +105,8 @@ services:
 
   rule-control-api:
     build:
-      context: ../../../raksha-engine
-      dockerfile: apps/rule-control-api/Dockerfile
+      context: ../../..
+      dockerfile: raksha-engine/apps/rule-control-api/Dockerfile
     environment:
       RULE_CONTROL_LISTEN_ADDR: ":8082"
       RULE_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_engine?sslmode=disable
@@ -153,8 +153,8 @@ services:
 
   alert-control-api:
     build:
-      context: ../../../raksha-notifier-gateway
-      dockerfile: apps/alert-control-api/Dockerfile
+      context: ../../..
+      dockerfile: raksha-notifier-gateway/apps/alert-control-api/Dockerfile
     environment:
       ALERT_CONTROL_LISTEN_ADDR: ":8083"
       ALERT_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_notifier?sslmode=disable

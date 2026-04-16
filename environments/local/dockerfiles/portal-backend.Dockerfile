@@ -27,10 +27,14 @@ RUN apt-get update && \
 # is the simplest way to keep hoisted/symlinked deps intact.
 COPY --from=builder /build/raksha-portal /app/raksha-portal
 COPY --from=builder /build/raksha-contracts/protos /proto
+# OpenAPI contracts re-exposed by the ContractsModule at /v1/contracts/*.
+COPY --from=builder /build/raksha-contracts/openapi /app/raksha-contracts/openapi
 
 EXPOSE 3001 50051
 
 ENV CONFIG_WATCH_PROTO_PATH=/proto/raksha/control/v1/config_watch.proto
+# ContractsController resolves YAMLs from this dir.
+ENV CONTRACTS_DIR=/app/raksha-contracts
 
 WORKDIR /app/raksha-portal/apps/backend
 
