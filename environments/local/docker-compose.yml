@@ -200,6 +200,26 @@ services:
 
   # ── Ingestion context ───────────────────────────────────────────────
 
+  stream-control-api:
+    build:
+      context: ../../..
+      dockerfile: raksha-ingestion-gateway/apps/stream-control-api/Dockerfile
+    environment:
+      STREAM_CONTROL_LISTEN_ADDR: ":8081"
+      STREAM_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_gateway?sslmode=disable
+      STREAM_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-event-gateway
+    ports:
+      - "8087:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+
   ingestion-gateway:
     build:
       context: ../../..
@@ -247,6 +267,10 @@ services:
       ENGINE_BASE_URL: http://rule-control-api:8082
       NOTIFIER_BASE_URL: http://alert-control-api:8083
       EVENT_GATEWAY_BASE_URL: http://ingestion-gateway:8080
+      # stream-control-api is the Go CRUD surface of raksha-ingestion-gateway
+      # (sibling of ingestion-gateway the Rust runtime). ingestion-proxy
+      # in portal-backend uses this URL for datasource + stream CRUD.
+      STREAM_CONTROL_BASE_URL: http://stream-control-api:8081
     ports:
       - "3001:3001"
     depends_on:
@@ -255,6 +279,8 @@ services:
       rule-control-api:
         condition: service_healthy
       alert-control-api:
+        condition: service_healthy
+      stream-control-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3001/healthz >/dev/null || exit 1"]
