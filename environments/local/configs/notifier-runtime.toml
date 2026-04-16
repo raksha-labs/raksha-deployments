@@ -1,0 +1,65 @@
+# Notifier-runtime configuration inside the local-stack docker network.
+# Key values are overridden by NOTIFIER_* + ALERT_CONTROL_PEER_TOKEN env
+# vars in docker-compose.
+
+instance_id = "notifier-local"
+shutdown_timeout_secs = 15
+
+[redis]
+url = "redis://redis:6379"
+consumer_stream = "raksha:alerts:outbound"
+consumer_group = "notifier-gateway"
+consumer_name = "notifier-0"
+block_ms = 5000
+batch_size = 100
+autoclaim_min_idle_ms = 60000
+
+# Long-poll subscriber pulls receiver+route snapshots from alert-control-api.
+[config_source]
+endpoint = "http://alert-control-api:8083"
+tenant_id = "00000000-0000-0000-0000-000000000001"
+peer_token = "dev-peer-token-notifier-gateway"
+version_store_path = "/data/version-store"
+watch_timeout_secs = 25
+
+[ingest]
+endpoint = "http://alert-control-api:8083"
+peer_token = "dev-peer-token-notifier-gateway"
+timeout_secs = 5
+
+[health]
+enabled = true
+port = 8080
+
+[observability]
+enabled = true
+bind_address = "0.0.0.0:9090"
+
+[dispatch]
+default_cooldown_sec = 300
+channel_timeout_ms = 5000
+dedup_cache_size = 10000
+dry_run = false
+
+[retry]
+max_attempts = 3
+initial_delay_secs = 1.0
+max_delay_secs = 30.0
+multiplier = 2.0
+jitter = true
+
+[circuit_breaker]
+failure_threshold = 5
+failure_window_secs = 60
+cooldown_secs = 30
+half_open_max_requests = 1
+
+[email]
+ses_region = "us-east-1"
+from_address = "alerts@rakshalabs.io"
+
+[simulation]
+workbench_service_url = "http://workbench-services:8010"
+
+[portal]
+url = "http://localhost:3000"

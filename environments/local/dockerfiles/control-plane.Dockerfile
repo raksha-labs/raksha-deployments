@@ -6,10 +6,10 @@ WORKDIR /build
 
 RUN npm install -g pnpm@9.0.0
 
-COPY raksha-control-plane ./raksha-control-plane
+COPY raksha-portal ./raksha-portal
 COPY raksha-contracts ./raksha-contracts
 
-WORKDIR /build/raksha-control-plane
+WORKDIR /build/raksha-portal
 RUN pnpm install --frozen-lockfile=false
 RUN pnpm --filter @raksha/backend build
 
@@ -25,13 +25,13 @@ RUN apt-get update && \
 # Copy the whole workspace so pnpm's `.pnpm` store + symlinks resolve.
 # The backend runs from its own app dir; preserving the workspace layout
 # is the simplest way to keep hoisted/symlinked deps intact.
-COPY --from=builder /build/raksha-control-plane /app/raksha-control-plane
+COPY --from=builder /build/raksha-portal /app/raksha-portal
 COPY --from=builder /build/raksha-contracts/protos /proto
 
 EXPOSE 3001 50051
 
 ENV CONFIG_WATCH_PROTO_PATH=/proto/raksha/control/v1/config_watch.proto
 
-WORKDIR /app/raksha-control-plane/apps/backend
+WORKDIR /app/raksha-portal/apps/backend
 
 CMD ["node", "dist/main.js"]

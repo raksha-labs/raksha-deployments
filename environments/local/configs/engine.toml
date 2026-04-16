@@ -1,4 +1,5 @@
 # Engine configuration inside the local-stack docker network.
+# All key values are overridden by RAKSHA_* env vars in docker-compose.
 
 [source]
 connector_type = "redis"
@@ -37,9 +38,11 @@ max_rule_states = 100000
 enable_http_server = true
 bind_address = "0.0.0.0:9090"
 
+# Long-poll subscriber pulls runtime snapshots from rule-control-api.
 [config_source]
-endpoint = "http://control-plane:50051"
+endpoint = "http://rule-control-api:8082"
 tenant_id = "00000000-0000-0000-0000-000000000001"
 peer_token = "dev-peer-token-engine"
 version_store_path = "/data/version-store"
 peer_name = "engine"
+watch_timeout_secs = 25

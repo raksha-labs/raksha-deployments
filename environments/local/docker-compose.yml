@@ -1,17 +1,35 @@
 # =========================================================================
-# Raksha Labs local stack
+# Raksha Labs local stack (post bounded-context split, 2026-04-16)
 # =========================================================================
 # Single-command bring-up of the full system:
-#   postgres (shared)     → one instance, multiple DBs, schemas loaded at init
-#   redis                 → event + alert stream transport
-#   minio                 → S3-compatible store for event-gateway cold archive
-#   minio-init            → one-shot bucket + 7d lifecycle creation
-#   control-plane         → NestJS REST + gRPC ConfigWatch (:3001, :50051)
-#   engine                → DSL rule engine, subscribes to ConfigWatch
-#   event-gateway         → ingestion, subscribes to ConfigWatch, archives to MinIO
-#   notifier-gateway      → drains alerts stream, dispatches per-tenant channels
 #
-# Build contexts use `..` (raksha-labs/) so Rust `path =` deps resolve.
+#   postgres            shared instance, 4 DBs (portal, engine, notifier,
+#                       gateway). Each DB is owned by exactly one repo.
+#   redis               Streams transport for events + alerts.
+#   minio + minio-init  cold archive for ingestion-gateway envelopes.
+#
+#   ── platform context (raksha-portal/) ──────────────────────────────
+#   portal-backend      NestJS API — proxies detection + delivery.
+#   portal              customer Next.js UI (BFF → portal-backend).
+#   admin               internal Next.js UI.
+#
+#   ── detection context (raksha-engine/) ─────────────────────────────
+#   rule-control-api    Go CRUD: patterns + versions + snapshots.
+#   engine              Rust runtime: long-polls rule-control-api,
+#                       compiles DSL, emits alerts onto redis.
+#
+#   ── delivery context (raksha-notifier-gateway/) ────────────────────
+#   alert-control-api   Go CRUD: alerts + receivers + routes + deliveries.
+#   notifier-runtime    Rust: consumes alert.fired from redis, dispatches
+#                       to channels, POSTs occurrences + delivery attempts
+#                       back to alert-control-api.
+#
+#   ── ingestion context (raksha-ingestion-gateway/) ──────────────────
+#   ingestion-gateway   Rust: connects to data sources, normalizes to
+#                       UnifiedEventV1, publishes to redis.
+#
+# Build contexts use `../../..` (raksha-labs/) so per-repo Cargo path
+# dependencies (e.g. raksha-engine → raksha-contracts) resolve.
 # =========================================================================
 
 name: raksha-local
@@ -22,17 +40,18 @@ services:
     environment:
       POSTGRES_USER: raksha
       POSTGRES_PASSWORD: raksha
-      POSTGRES_DB: raksha_control
+      POSTGRES_DB: raksha_portal
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d:ro
-      - ../../../raksha-control-plane/db/schema:/schemas/control-plane:ro
-      - ../../../raksha-ingestion-gateway/sql:/schemas/event-gateway:ro
-      - ../../../raksha-notifier-gateway/infra/local/init-db:/schemas/notifier:ro
+      - ../../../raksha-portal/db/schema:/schemas/portal:ro
+      - ../../../raksha-engine/db/control/schema.sql:/schemas/engine/schema.sql:ro
+      - ../../../raksha-notifier-gateway/db/control/schema.sql:/schemas/notifier/schema.sql:ro
+      - ../../../raksha-ingestion-gateway/sql/schema.sql:/schemas/gateway/schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U raksha -d raksha_control"]
+      test: ["CMD-SHELL", "pg_isready -U raksha -d raksha_portal"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -82,45 +101,28 @@ services:
       "
     restart: "no"
 
-  control-plane:
+  # ── Detection context ───────────────────────────────────────────────
+
+  rule-control-api:
     build:
-      context: ../../..
-      dockerfile: raksha-deployments/environments/local/dockerfiles/control-plane.Dockerfile
+      context: ../../../raksha-engine
+      dockerfile: apps/rule-control-api/Dockerfile
     environment:
-      NODE_ENV: development
-      BACKEND_PORT: 3001
-      BACKEND_HOST: 0.0.0.0
-      GRPC_PORT: 50051
-      GRPC_HOST: 0.0.0.0
-      DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_control
-      DATABASE_POOL_SIZE: 10
-      CORS_ORIGINS: http://localhost:3000,http://localhost:3002
-      INTERNAL_SERVICE_TOKEN: dev-service-token-local
-      PEER_TOKEN_ENGINE: dev-peer-token-engine
-      PEER_TOKEN_EVENT_GATEWAY: dev-peer-token-event-gateway
-      PEER_TOKEN_NOTIFIER_GATEWAY: dev-peer-token-notifier-gateway
-      CONFIG_WATCH_PROTO_PATH: /proto/raksha/control/v1/config_watch.proto
-      # Alert bus — must match raksha-engine's redis_sink.stream_key and
-      # whatever engine.toml tells it to XADD into.
-      ALERT_BUS_KIND: redis
-      REDIS_URL: redis://redis:6379
-      ALERT_STREAM_KEY: raksha:alerts:outbound
-      ALERT_CONSUMER_GROUP: control-plane
-      ALERT_CONSUMER_NAME: control-plane-0
+      RULE_CONTROL_LISTEN_ADDR: ":8082"
+      RULE_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_engine?sslmode=disable
+      RULE_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-engine
+      RULE_CONTROL_WATCH_TIMEOUT_SECS: "25"
     ports:
-      - "3001:3001"
-      - "50051:50051"
+      - "8085:8082"
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3001/healthz >/dev/null || exit 1"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8082/healthz"]
       interval: 10s
       timeout: 3s
       retries: 20
-      start_period: 30s
+      start_period: 15s
 
   engine:
     build:
@@ -128,6 +130,13 @@ services:
       dockerfile: raksha-deployments/environments/local/dockerfiles/engine.Dockerfile
     environment:
       RUST_LOG: info
+      RAKSHA_CONFIG_SOURCE__ENDPOINT: http://rule-control-api:8082
+      RAKSHA_CONFIG_SOURCE__TENANT_ID: "00000000-0000-0000-0000-000000000001"
+      RAKSHA_CONFIG_SOURCE__PEER_TOKEN: dev-peer-token-engine
+      RAKSHA_CONFIG_SOURCE__VERSION_STORE_PATH: /data/version-store
+      RAKSHA_CONFIG_SOURCE__WATCH_TIMEOUT_SECS: "25"
+      RAKSHA_SOURCE__REDIS__URL: redis://redis:6379
+      RAKSHA_SINK__REDIS__URL: redis://redis:6379
     volumes:
       - ./configs/engine.toml:/app/config.toml:ro
       - engine-data:/data
@@ -136,18 +145,68 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      control-plane:
+      rule-control-api:
         condition: service_healthy
     restart: unless-stopped
 
-  event-gateway:
+  # ── Delivery context ────────────────────────────────────────────────
+
+  alert-control-api:
+    build:
+      context: ../../../raksha-notifier-gateway
+      dockerfile: apps/alert-control-api/Dockerfile
+    environment:
+      ALERT_CONTROL_LISTEN_ADDR: ":8083"
+      ALERT_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_notifier?sslmode=disable
+      ALERT_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-notifier-gateway
+      ALERT_CONTROL_WATCH_TIMEOUT_SECS: "25"
+    ports:
+      - "8086:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8083/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+
+  notifier-runtime:
+    build:
+      context: ../../..
+      dockerfile: raksha-deployments/environments/local/dockerfiles/notifier-gateway.Dockerfile
+    environment:
+      RUST_LOG: info
+      REDIS_URL: redis://redis:6379
+      NOTIFIER_CONFIG_SOURCE_ENDPOINT: http://alert-control-api:8083
+      NOTIFIER_TENANT_ID: "00000000-0000-0000-0000-000000000001"
+      ALERT_CONTROL_PEER_TOKEN: dev-peer-token-notifier-gateway
+      NOTIFIER_VERSION_STORE_PATH: /data/version-store
+      HEALTH_CHECK_PORT: "8080"
+      RAKSHA_WEB_PORTAL_URL: http://localhost:3000
+    volumes:
+      - ./configs/notifier-runtime.toml:/app/config.toml:ro
+      - notifier-data:/data
+    ports:
+      - "8082:8080"
+      - "9093:9090"
+    depends_on:
+      redis:
+        condition: service_healthy
+      alert-control-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Ingestion context ───────────────────────────────────────────────
+
+  ingestion-gateway:
     build:
       context: ../../..
       dockerfile: raksha-deployments/environments/local/dockerfiles/event-gateway.Dockerfile
       target: gateway
     environment:
       RUST_LOG: info
-      # S3 credentials for MinIO — standard AWS SDK env vars.
       AWS_ACCESS_KEY_ID: raksha
       AWS_SECRET_ACCESS_KEY: rakshadevsecret
       AWS_REGION: us-east-1
@@ -165,54 +224,44 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
-      control-plane:
-        condition: service_healthy
     restart: unless-stopped
 
-  event-gateway-test-console:
+  # ── Platform context ────────────────────────────────────────────────
+
+  portal-backend:
     build:
       context: ../../..
-      dockerfile: raksha-deployments/environments/local/dockerfiles/event-gateway.Dockerfile
-      target: test-console
+      dockerfile: raksha-deployments/environments/local/dockerfiles/control-plane.Dockerfile
     environment:
-      RUST_LOG: info
-      REDIS_URL: redis://redis:6379
-      CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_control
-      TEST_CONSOLE_PORT: "9094"
-      MOCK_BASE_URL: http://event-gateway-test-console:9094
-      DEFAULT_TENANT_ID: "00000000-0000-0000-0000-000000000001"
-      STREAM_ROUTE_PREFIX: raksha
+      NODE_ENV: development
+      BACKEND_PORT: 3001
+      BACKEND_HOST: 0.0.0.0
+      DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_portal
+      DATABASE_POOL_SIZE: 10
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3002
+      INTERNAL_SERVICE_TOKEN: dev-service-token-local
+      # Peer-tokens for proxying into bounded-context services.
+      PEER_TOKEN_ENGINE: dev-peer-token-engine
+      PEER_TOKEN_NOTIFIER_GATEWAY: dev-peer-token-notifier-gateway
+      PEER_TOKEN_EVENT_GATEWAY: dev-peer-token-event-gateway
+      ENGINE_BASE_URL: http://rule-control-api:8082
+      NOTIFIER_BASE_URL: http://alert-control-api:8083
+      EVENT_GATEWAY_BASE_URL: http://ingestion-gateway:8080
     ports:
-      - "9094:9094"
+      - "3001:3001"
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      rule-control-api:
         condition: service_healthy
-      control-plane:
+      alert-control-api:
         condition: service_healthy
-    restart: unless-stopped
-
-  notifier-gateway:
-    build:
-      context: ../../..
-      dockerfile: raksha-deployments/environments/local/dockerfiles/notifier-gateway.Dockerfile
-    environment:
-      RUST_LOG: info
-      DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_notifier
-      REDIS_URL: redis://redis:6379
-      HEALTH_CHECK_PORT: "8080"
-    volumes:
-      - ./configs/notifier-gateway.toml:/app/config.toml:ro
-    ports:
-      - "8082:8080"
-      - "9093:9090"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3001/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
 
   portal:
     build:
@@ -223,27 +272,20 @@ services:
         APP_PORT: "3000"
         NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
     environment:
-      # Signs dev session cookies. Must be ≥32 chars. Never reuse in prod.
       RAKSHA_WEB_SESSION_SECRET: raksha-local-dev-session-secret-32chars
-      # Mints a dev session for the seed tenant on any unauthenticated
-      # request. See middleware.ts for details. NEVER set in staging/prod.
       RAKSHA_DEV_AUTOLOGIN: "true"
       RAKSHA_DEV_TENANT_ID: "00000000-0000-0000-0000-000000000001"
       RAKSHA_DEV_USER_SUB: "00000000-0000-0000-0000-0000000000aa"
       RAKSHA_DEV_USER_EMAIL: dev@raksha.local
-      # Dev over HTTP — bypass secure-cookie requirement.
       RAKSHA_WEB_SECURE_COOKIES: "false"
-      # BFF targets — portal's Next.js /api/* route handlers forward
-      # browser calls to control-plane using the service token for
-      # trusted-proxy auth (see SessionGuard in control-plane).
-      API_SERVICE_URL: http://control-plane:3001
-      CONTROL_SERVICE_URL: http://control-plane:3001
+      API_SERVICE_URL: http://portal-backend:3001
+      CONTROL_SERVICE_URL: http://portal-backend:3001
       RAKSHA_API_KEY: dev-service-token-local
       AUTH_INTERNAL_SERVICE_TOKEN: dev-service-token-local
     ports:
       - "3000:3000"
     depends_on:
-      control-plane:
+      portal-backend:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000 >/dev/null || exit 1"]
@@ -266,13 +308,13 @@ services:
       RAKSHA_ADMIN_DEV_AUTOLOGIN: "true"
       RAKSHA_ADMIN_DEV_TOKEN: dev-service-token-local
       RAKSHA_ADMIN_SECURE_COOKIES: "false"
-      ADMIN_API_BASE_URL: http://control-plane:3001
+      ADMIN_API_BASE_URL: http://portal-backend:3001
       RAKSHA_API_KEY: dev-service-token-local
       AUTH_INTERNAL_SERVICE_TOKEN: dev-service-token-local
     ports:
       - "3002:3002"
     depends_on:
-      control-plane:
+      portal-backend:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3002 >/dev/null || exit 1"]
@@ -287,3 +329,4 @@ volumes:
   redisdata:
   miniodata:
   engine-data:
+  notifier-data:

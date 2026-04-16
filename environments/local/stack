@@ -45,19 +45,20 @@ cmd_up() {
   cat <<EOF
 
 ==> endpoints
-  portal (user UI)        http://localhost:3000
-  admin  (ops UI)         http://localhost:3002
-  control-plane REST      http://localhost:3001
-  control-plane Swagger   http://localhost:3001/v1/openapi
-  control-plane gRPC      localhost:50051
-  event-gateway health    http://localhost:8080/health
-  event-gateway metrics   http://localhost:9092/metrics
-  event-gateway e2e UI    http://localhost:9094
-  notifier-gateway health http://localhost:8082/health
-  engine metrics          http://localhost:9091/metrics
-  minio console           http://localhost:9001 (raksha / rakshadevsecret)
-  postgres                localhost:5432 (raksha / raksha)
-  redis                   localhost:6379
+  portal (user UI)          http://localhost:3000
+  admin  (ops UI)           http://localhost:3002
+  portal-backend REST       http://localhost:3001
+  portal-backend Swagger    http://localhost:3001/v1/openapi
+  rule-control-api          http://localhost:8085   (detection CRUD; peer-token)
+  alert-control-api         http://localhost:8086   (delivery CRUD; peer-token)
+  ingestion-gateway health  http://localhost:8080/health
+  ingestion-gateway metrics http://localhost:9092/metrics
+  notifier-runtime health   http://localhost:8082/health
+  notifier-runtime metrics  http://localhost:9093/metrics
+  engine metrics            http://localhost:9091/metrics
+  minio console             http://localhost:9001  (raksha / rakshadevsecret)
+  postgres                  localhost:5432         (raksha / raksha)
+  redis                     localhost:6379
 
 ==> next steps
   ./stack logs            # tail logs

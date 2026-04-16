@@ -1,4 +1,4 @@
-# Shared Dockerfile for raksha-control-plane/apps/portal and apps/admin.
+# Shared Dockerfile for raksha-portal/apps/portal and apps/admin.
 # The target app is selected at build time via the APP_NAME build arg.
 #
 # Both apps are Next.js 14 with pnpm workspace deps on @raksha/ui,
@@ -18,9 +18,9 @@ WORKDIR /build
 
 RUN npm install -g pnpm@9.0.0
 
-COPY raksha-control-plane ./raksha-control-plane
+COPY raksha-portal ./raksha-portal
 
-WORKDIR /build/raksha-control-plane
+WORKDIR /build/raksha-portal
 RUN pnpm install --frozen-lockfile=false
 
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
@@ -42,12 +42,12 @@ RUN apt-get update && \
 
 # Same workspace-preservation strategy as the backend image — pnpm's
 # symlinked store lives in the workspace root, so we keep the tree intact.
-COPY --from=builder /build/raksha-control-plane /app/raksha-control-plane
+COPY --from=builder /build/raksha-portal /app/raksha-portal
 
 EXPOSE ${APP_PORT}
 
-WORKDIR /app/raksha-control-plane/apps/${APP_NAME}
+WORKDIR /app/raksha-portal/apps/${APP_NAME}
 
 # `next start -p ${PORT}` reads the PORT env at runtime.
 ENV PORT=${APP_PORT}
-CMD ["sh", "-c", "cd /app/raksha-control-plane/apps/${APP_NAME} && npx next start -p ${APP_PORT}"]
+CMD ["sh", "-c", "cd /app/raksha-portal/apps/${APP_NAME} && npx next start -p ${APP_PORT}"]

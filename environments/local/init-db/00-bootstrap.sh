@@ -1,21 +1,19 @@
 #!/bin/bash
 # Postgres bootstrap for the local-stack. Runs inside the postgres container
-# on first init. Creates the per-service databases and loads each service's
+# on first init. Creates the per-context databases and loads each context's
 # schema into its own database.
 #
-# Schemas are bind-mounted read-only under /schemas/<service>/.
+# Each repo bind-mounts its schema read-only under /schemas/<context>/.
 #
 # Order:
-#   1. raksha_control    — control-plane (NestJS)      — all /schemas/control-plane/*
-#   2. raksha_gateway    — event-gateway operational   — /schemas/event-gateway/schema.sql
-#   3. raksha_gateway_raw — event-gateway raw_landing  — same schema (hot-tier envelopes)
-#   4. raksha_notifier   — notifier-gateway            — /schemas/notifier/*
+#   1. raksha_portal   — platform (NestJS backend) — /schemas/portal/*.sql
+#   2. raksha_engine   — detection                 — /schemas/engine/schema.sql
+#   3. raksha_notifier — delivery                  — /schemas/notifier/schema.sql
+#   4. raksha_gateway  — ingestion                 — /schemas/gateway/schema.sql
 
 set -euo pipefail
 
-psql_cmd() {
-  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" "$@"
-}
+psql_cmd() { psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" "$@"; }
 
 create_db() {
   local dbname="$1"
@@ -31,11 +29,10 @@ load_schema_dir() {
     return
   fi
   for f in $(ls -1 "$dir" | sort); do
-    local full="$dir/$f"
     case "$f" in
       *.sql)
-        echo "[bootstrap] loading $full into $dbname"
-        psql_cmd -d "$dbname" -f "$full"
+        echo "[bootstrap] loading $dir/$f into $dbname"
+        psql_cmd -d "$dbname" -f "$dir/$f"
         ;;
     esac
   done
@@ -52,17 +49,16 @@ load_schema_file() {
   psql_cmd -d "$dbname" -f "$file"
 }
 
-# The default POSTGRES_DB created by the image is raksha_control — so the
-# control-plane DB already exists. Load its ordered schema files there.
-load_schema_dir "$POSTGRES_DB" "/schemas/control-plane"
+# raksha_portal already exists (POSTGRES_DB).
+load_schema_dir "$POSTGRES_DB" "/schemas/portal"
 
-create_db "raksha_gateway"
-load_schema_file "raksha_gateway" "/schemas/event-gateway/schema.sql"
-
-create_db "raksha_gateway_raw"
-load_schema_file "raksha_gateway_raw" "/schemas/event-gateway/schema.sql"
+create_db "raksha_engine"
+load_schema_file "raksha_engine" "/schemas/engine/schema.sql"
 
 create_db "raksha_notifier"
-load_schema_dir "raksha_notifier" "/schemas/notifier"
+load_schema_file "raksha_notifier" "/schemas/notifier/schema.sql"
+
+create_db "raksha_gateway"
+load_schema_file "raksha_gateway" "/schemas/gateway/schema.sql"
 
 echo "[bootstrap] all databases initialized"
