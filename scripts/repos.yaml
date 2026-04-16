@@ -1,0 +1,50 @@
+# Canonical list of repos that participate in coordinated releases.
+# Used by scripts/release_branch.py + scripts/release_tag.py.
+#
+# `path` is resolved relative to this repo's parent directory (i.e. all
+# repos live as siblings of raksha-deployments under raksha-labs/).
+# Override with --workspace if your layout differs.
+#
+# `primary_branch` is the branch new release branches are cut from and
+# the ref tags are placed on by default.
+#
+# Set `optional: true` for repos that may not exist on every contributor
+# machine — the scripts skip-with-warning instead of failing.
+
+repos:
+  # ── runtime services (each has its own ci.yml + deploy.yml) ──
+  - name: raksha-portal
+    primary_branch: master
+    role: runtime
+
+  - name: raksha-engine
+    primary_branch: master
+    role: runtime
+
+  - name: raksha-notifier-gateway
+    primary_branch: master
+    role: runtime
+
+  - name: raksha-ingestion-gateway
+    primary_branch: master
+    role: runtime
+
+  # ── shared / coordination ──
+  - name: raksha-contracts
+    primary_branch: master
+    role: contracts
+
+  - name: raksha-deployments
+    primary_branch: master
+    role: deployments
+
+  # ── infrastructure (deployed via its own gated workflow) ──
+  - name: raksha-foundation-infra
+    primary_branch: master
+    role: infra
+
+  # ── legacy / optional ──
+  - name: raksha-core
+    primary_branch: master
+    role: legacy
+    optional: true
