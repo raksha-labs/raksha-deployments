@@ -3,7 +3,7 @@
 #
 # Both apps are Next.js 14 with pnpm workspace deps on @raksha/ui,
 # @raksha/api-client, @raksha/domain-types — so we copy the whole
-# control-plane workspace.
+# raksha-portal workspace.
 #
 # NEXT_PUBLIC_API_BASE_URL is baked in at build time because Next.js
 # substitutes it into the client bundle during `next build`. The default

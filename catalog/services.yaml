@@ -1,50 +1,80 @@
-version: 1
+version: 2
+# Updated 2026-04-16 for the four-context bounded-context architecture.
+# Each service belongs to exactly one repo and deploys with its peers in
+# the deploy_group below.
 services:
-  - name: platform-api
-    source_repo: raksha-platform
-    image_repo: raksha-api-service
-    deploy_group: control-plane
+  # ── Platform context (raksha-portal) ─────────────────────────────
+  - name: portal-backend
+    source_repo: raksha-portal
+    source_path: apps/backend
+    image_repo: raksha-portal-backend
+    deploy_group: portal
     rollout_order: 10
     default_strategy: rolling
 
-  - name: platform-control
-    source_repo: raksha-platform
-    image_repo: raksha-control-service
-    deploy_group: control-plane
+  - name: portal
+    source_repo: raksha-portal
+    source_path: apps/portal
+    image_repo: raksha-portal
+    deploy_group: portal
     rollout_order: 20
-    default_strategy: rolling
-
-  - name: platform-portal
-    source_repo: raksha-platform
-    image_repo: raksha-raksha-portal
-    deploy_group: control-plane
-    rollout_order: 30
     default_strategy: blue_green
 
-  - name: platform-admin
-    source_repo: raksha-platform
-    image_repo: raksha-raksha-admin
-    deploy_group: control-plane
-    rollout_order: 40
+  - name: admin
+    source_repo: raksha-portal
+    source_path: apps/admin
+    image_repo: raksha-admin
+    deploy_group: portal
+    rollout_order: 30
     default_strategy: rolling
 
-  - name: event-gateway
-    source_repo: raksha-ingestion-gateway
-    image_repo: raksha-ingestion-gateway
-    deploy_group: runtime
-    rollout_order: 50
+  # ── Detection context (raksha-engine) ────────────────────────────
+  - name: rule-control-api
+    source_repo: raksha-engine
+    source_path: apps/rule-control-api
+    image_repo: raksha-rule-control-api
+    deploy_group: detection
+    rollout_order: 40
     default_strategy: rolling
 
   - name: engine
     source_repo: raksha-engine
+    source_path: apps/engine
     image_repo: raksha-engine
-    deploy_group: runtime
+    deploy_group: detection
+    rollout_order: 50
+    default_strategy: rolling
+
+  # ── Delivery context (raksha-notifier-gateway) ───────────────────
+  - name: alert-control-api
+    source_repo: raksha-notifier-gateway
+    source_path: apps/alert-control-api
+    image_repo: raksha-alert-control-api
+    deploy_group: delivery
     rollout_order: 60
     default_strategy: rolling
 
-  - name: notifier-gateway
+  - name: notifier-runtime
     source_repo: raksha-notifier-gateway
-    image_repo: raksha-notifier-gateway
-    deploy_group: runtime
+    source_path: apps/notifier-runtime
+    image_repo: raksha-notifier-runtime
+    deploy_group: delivery
     rollout_order: 70
+    default_strategy: rolling
+
+  # ── Ingestion context (raksha-ingestion-gateway) ─────────────────
+  - name: stream-control-api
+    source_repo: raksha-ingestion-gateway
+    source_path: apps/stream-control-api
+    image_repo: raksha-stream-control-api
+    deploy_group: ingestion
+    rollout_order: 80
+    default_strategy: rolling
+
+  - name: ingestion-gateway
+    source_repo: raksha-ingestion-gateway
+    source_path: apps/ingestion-gateway
+    image_repo: raksha-ingestion-gateway
+    deploy_group: ingestion
+    rollout_order: 90
     default_strategy: rolling

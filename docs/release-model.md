@@ -6,7 +6,7 @@ This repository is the reviewed record of what is deployed in each environment.
 
 ## Flow
 
-1. Service CI in `raksha-platform`, `raksha-ingestion-gateway`, `raksha-engine`, or `raksha-notifier-gateway` publishes an image.
+1. Service CI in `raksha-portal`, `raksha-engine`, `raksha-notifier-gateway`, or `raksha-ingestion-gateway` publishes an image.
 2. A PR updates the matching `environments/<env>/services.yaml` file.
 3. Review verifies:
    - image version
@@ -25,11 +25,11 @@ This repository is the reviewed record of what is deployed in each environment.
 
 The service catalog defines `rollout_order` so automation can sequence deployments consistently:
 
-1. control-plane APIs
-2. control-plane UIs
-3. ingestion runtime
-4. detection runtime
-5. notification runtime
+1. `portal-backend` (NestJS — entry point for portal/admin UIs)
+2. `portal`, `admin` (Next.js UIs)
+3. `rule-control-api`, then `engine` (detection context)
+4. `alert-control-api`, then `notifier-runtime` (delivery context)
+5. `stream-control-api`, then `ingestion-gateway` (ingestion context)
 
 ## Future Extension
 

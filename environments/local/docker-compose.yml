@@ -231,7 +231,7 @@ services:
   portal-backend:
     build:
       context: ../../..
-      dockerfile: raksha-deployments/environments/local/dockerfiles/control-plane.Dockerfile
+      dockerfile: raksha-deployments/environments/local/dockerfiles/portal-backend.Dockerfile
     environment:
       NODE_ENV: development
       BACKEND_PORT: 3001

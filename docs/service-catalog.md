@@ -15,12 +15,14 @@ It defines deployment metadata shared across environments, including:
 
 ## Current Services
 
-The initial catalog covers:
+The catalog covers the four bounded-context deploy groups:
 
-- control-plane services from `raksha-platform`
-- runtime services from `raksha-ingestion-gateway`
-- runtime services from `raksha-engine`
-- runtime services from `raksha-notifier-gateway`
+| deploy_group | Services |
+|---|---|
+| `portal` | `portal-backend` (NestJS), `portal` (Next.js customer UI), `admin` (Next.js ops UI) — all from `raksha-portal/apps/*` |
+| `detection` | `rule-control-api` (Go), `engine` (Rust) — from `raksha-engine/apps/*` |
+| `delivery` | `alert-control-api` (Go), `notifier-runtime` (Rust) — from `raksha-notifier-gateway/apps/*` |
+| `ingestion` | `stream-control-api` (Go), `ingestion-gateway` (Rust) — from `raksha-ingestion-gateway/apps/*` |
 
 ## Purpose
 

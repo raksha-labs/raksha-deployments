@@ -28,7 +28,7 @@ enabled = true
 bind_address = "0.0.0.0:9090"
 
 [config_source]
-endpoint = "http://control-plane:50051"
+endpoint = "http://rule-control-api:8082"
 tenant_id = "00000000-0000-0000-0000-000000000001"
 peer_token = "dev-peer-token-event-gateway"
 peer_name = "event-gateway"
