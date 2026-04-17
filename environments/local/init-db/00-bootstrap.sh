@@ -10,10 +10,14 @@
 #   2. raksha_engine   — detection                 — /schemas/engine/schema.sql
 #   3. raksha_notifier — delivery                  — /schemas/notifier/schema.sql
 #   4. raksha_gateway  — ingestion                 — /schemas/gateway/schema.sql
+#   5. raksha_simlab   — simulation                — /schemas/simlab/schema.sql
 
 set -euo pipefail
 
-psql_cmd() { psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" "$@"; }
+psql_cmd() {
+  PGOPTIONS="--client-min-messages=warning" \
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" "$@"
+}
 
 create_db() {
   local dbname="$1"
@@ -59,11 +63,15 @@ create_db "raksha_notifier"
 load_schema_file "raksha_notifier" "/schemas/notifier/schema.sql"
 
 create_db "raksha_gateway"
+load_schema_file "raksha_gateway" "/schemas/gateway-control/schema.sql"
 load_schema_file "raksha_gateway" "/schemas/gateway/schema.sql"
 
 # Raw-envelope landing DB: same schema, separate database so hot-tier
 # retention (7d in local) can be wiped without touching gateway metadata.
 create_db "raksha_gateway_raw"
 load_schema_file "raksha_gateway_raw" "/schemas/gateway/schema.sql"
+
+create_db "raksha_simlab"
+load_schema_file "raksha_simlab" "/schemas/simlab/schema.sql"
 
 echo "[bootstrap] all databases initialized"

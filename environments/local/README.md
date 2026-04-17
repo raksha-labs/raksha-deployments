@@ -1,6 +1,6 @@
 # Raksha Local Stack
 
-One-command bring-up of the full bounded-context system: portal + admin UIs, the portal/backend NestJS API, the two Go control-APIs (rule-control-api + alert-control-api), the three Rust runtimes (engine, notifier-runtime, ingestion-gateway), plus Postgres, Redis, and MinIO. Lives at `raksha-deployments/environments/local/`.
+One-command bring-up of the full bounded-context system: portal + admin UIs, the portal/backend NestJS API, the three Go APIs (`rule-control-api`, `alert-control-api`, `simlab-api`), the three Rust runtimes (engine, notifier-runtime, ingestion-gateway), plus Postgres, Redis, and MinIO. Lives at `raksha-deployments/environments/local/`.
 
 ```bash
 cd raksha-deployments/environments/local
@@ -21,6 +21,7 @@ cd raksha-deployments/environments/local
 | portal-backend Swagger | http://localhost:3001/v1/openapi |
 | rule-control-api (detection CRUD) | http://localhost:8085 |
 | alert-control-api (delivery CRUD) | http://localhost:8086 |
+| simlab-api (simulation CRUD) | http://localhost:8084 |
 | ingestion-gateway health | http://localhost:8080/health |
 | ingestion-gateway metrics | http://localhost:9092/metrics |
 | notifier-runtime health | http://localhost:8082/health |
@@ -32,7 +33,7 @@ cd raksha-deployments/environments/local
 
 ## Databases
 
-One shared Postgres instance, four databases auto-created and schema-loaded at first boot. Each repo's schema lives in that repo and is bind-mounted read-only into postgres at boot — no copies.
+One shared Postgres instance, five databases auto-created and schema-loaded at first boot. Each repo's schema lives in that repo and is bind-mounted read-only into postgres at boot — no copies.
 
 | Database | Owner repo | Owns schemas |
 |---|---|---|
@@ -40,6 +41,7 @@ One shared Postgres instance, four databases auto-created and schema-loaded at f
 | `raksha_engine` | raksha-engine/apps/rule-control-api (Go) | `engine.*` (patterns, drafts, versions, snapshots, rule_health, risk_scores) |
 | `raksha_notifier` | raksha-notifier-gateway/apps/alert-control-api (Go) | `alerts.*`, `notifier.*` (occurrences, events, receivers, routes, delivery_attempts, receiver_health, snapshots) |
 | `raksha_gateway` | raksha-ingestion-gateway/apps/ingestion-gateway (Rust) | gateway runtime tables |
+| `raksha_simlab` | raksha-simlab/apps/simlab-api (Go) | `simlab.*` (tenant_scenarios, runs) |
 
 ## Peer auth tokens
 
@@ -49,8 +51,11 @@ Every cross-repo HTTP call uses a single env-var bearer token:
 |---|---|---|
 | portal-backend → rule-control-api | `PEER_TOKEN_ENGINE` | `RULE_CONTROL_INTERNAL_PEER_TOKEN` |
 | portal-backend → alert-control-api | `PEER_TOKEN_NOTIFIER_GATEWAY` | `ALERT_CONTROL_INTERNAL_PEER_TOKEN` |
+| portal-backend → simlab-api | `PEER_TOKEN_SIMLAB` | n/a in local v1 |
 | engine → rule-control-api | `RAKSHA_CONFIG_SOURCE__PEER_TOKEN` | `RULE_CONTROL_INTERNAL_PEER_TOKEN` |
 | notifier-runtime → alert-control-api | `ALERT_CONTROL_PEER_TOKEN` | `ALERT_CONTROL_INTERNAL_PEER_TOKEN` |
+| simlab-api → stream-control-api | `SIMLAB_INGESTION_SIM_PEER_TOKEN` | `STREAM_CONTROL_INTERNAL_PEER_TOKEN` |
+| simlab-api → alert-control-api | `SIMLAB_NOTIFIER_PEER_TOKEN` | `ALERT_CONTROL_INTERNAL_PEER_TOKEN` |
 
 Local-stack uses fixed dev tokens (`dev-peer-token-engine`, `dev-peer-token-notifier-gateway`) wired through compose env so all sides match. **Never reuse in staging/prod.**
 
@@ -66,7 +71,7 @@ ingestion-gateway → redis:events.* → engine
                                                           ↓ dispatches to channels
 ```
 
-Every config change in the portal UI flows: **portal → portal-backend → rule-control-api / alert-control-api → snapshot rebuild → pg_notify → runtime long-poll wakes → ArcSwap apply** in under a second.
+Every config change in the portal UI flows: **portal → portal-backend → rule-control-api / alert-control-api / simlab-api**. Detection + delivery updates still rebuild snapshots and wake the Rust runtimes via long-poll.
 
 ## S3 archive
 

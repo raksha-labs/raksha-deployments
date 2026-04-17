@@ -8,6 +8,10 @@
 #   redis               Streams transport for events + alerts.
 #   minio + minio-init  cold archive for ingestion-gateway envelopes.
 #
+#   ── simulation context (raksha-simlab/) ────────────────────────────
+#   simlab-api          Go API: scenario catalog, bundle import, run
+#                       orchestration, and result inspection.
+#
 #   ── platform context (raksha-portal/) ──────────────────────────────
 #   portal-backend      NestJS API — proxies detection + delivery.
 #   portal              customer Next.js UI (BFF → portal-backend).
@@ -36,11 +40,12 @@ name: raksha-local
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16
     environment:
       POSTGRES_USER: raksha
-      POSTGRES_PASSWORD: raksha
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-raksha}
       POSTGRES_DB: raksha_portal
+      POSTGRES_INITDB_ARGS: --auth-local=scram-sha-256 --auth-host=scram-sha-256
     ports:
       - "5432:5432"
     volumes:
@@ -50,6 +55,8 @@ services:
       - ../../../raksha-engine/db/control/schema.sql:/schemas/engine/schema.sql:ro
       - ../../../raksha-notifier-gateway/db/control/schema.sql:/schemas/notifier/schema.sql:ro
       - ../../../raksha-ingestion-gateway/sql/schema.sql:/schemas/gateway/schema.sql:ro
+      - ../../../raksha-ingestion-gateway/db/control/schema.sql:/schemas/gateway-control/schema.sql:ro
+      - ../../../raksha-simlab/db/control/schema.sql:/schemas/simlab/schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U raksha -d raksha_portal"]
       interval: 5s
@@ -74,7 +81,7 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: raksha
-      MINIO_ROOT_PASSWORD: rakshadevsecret
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-rakshadevsecret}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -110,7 +117,7 @@ services:
     environment:
       RULE_CONTROL_LISTEN_ADDR: ":8082"
       RULE_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_engine?sslmode=disable
-      RULE_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-engine
+      RULE_CONTROL_INTERNAL_PEER_TOKEN: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine}
       RULE_CONTROL_WATCH_TIMEOUT_SECS: "25"
     ports:
       - "8085:8082"
@@ -158,7 +165,7 @@ services:
     environment:
       ALERT_CONTROL_LISTEN_ADDR: ":8083"
       ALERT_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_notifier?sslmode=disable
-      ALERT_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-notifier-gateway
+      ALERT_CONTROL_INTERNAL_PEER_TOKEN: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway}
       ALERT_CONTROL_WATCH_TIMEOUT_SECS: "25"
     ports:
       - "8086:8083"
@@ -210,6 +217,7 @@ services:
       # Evidence fetch: reads source_envelopes from the hot-tier raw DB.
       STREAM_CONTROL_RAW_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_gateway_raw?sslmode=disable
       STREAM_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-event-gateway
+      STREAM_CONTROL_SIM_REDIS_URL: redis://redis:6379
     ports:
       - "8087:8081"
     depends_on:
@@ -230,7 +238,7 @@ services:
     environment:
       RUST_LOG: info
       AWS_ACCESS_KEY_ID: raksha
-      AWS_SECRET_ACCESS_KEY: rakshadevsecret
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-rakshadevsecret}
       AWS_REGION: us-east-1
       AWS_ENDPOINT_URL_S3: http://minio:9000
       AWS_ENDPOINT_URL: http://minio:9000
@@ -248,12 +256,70 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # ── Simulation context ──────────────────────────────────────────────
+
+  simlab-db-init:
+    image: postgres:16-alpine
+    environment:
+      PGPASSWORD: raksha
+    volumes:
+      - ../../../raksha-simlab/db/control/schema.sql:/schemas/simlab/schema.sql:ro
+    entrypoint: >
+      /bin/sh -c "
+      set -e &&
+      until pg_isready -h postgres -U raksha -d postgres; do sleep 1; done &&
+      psql -h postgres -U raksha -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname = 'raksha_simlab'\" | grep -q 1 ||
+      psql -h postgres -U raksha -d postgres -c \"CREATE DATABASE raksha_simlab OWNER raksha\" &&
+      psql -h postgres -U raksha -d raksha_simlab -f /schemas/simlab/schema.sql &&
+      echo 'simlab db init complete'
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  simlab-api:
+    build:
+      context: ../../../raksha-simlab
+      dockerfile: apps/simlab-api/Dockerfile
+    environment:
+      SIMLAB_LISTEN_ADDR: ":8084"
+      SIMLAB_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_simlab?sslmode=disable
+      SIMLAB_BUNDLE_ROOTS: /bundles/platform
+      SIMLAB_BUNDLE_STORE_DIR: /data/bundles
+      SIMLAB_INGESTION_SIM_BASE_URL: http://stream-control-api:8081
+      SIMLAB_INGESTION_SIM_PEER_TOKEN: dev-peer-token-event-gateway
+      SIMLAB_RULE_CONTROL_BASE_URL: http://rule-control-api:8082
+      SIMLAB_RULE_CONTROL_PEER_TOKEN: dev-peer-token-engine
+      SIMLAB_NOTIFIER_BASE_URL: http://alert-control-api:8083
+      SIMLAB_NOTIFIER_PEER_TOKEN: dev-peer-token-notifier-gateway
+    volumes:
+      - ../../../raksha-engine/apps/engine/scenario-bundles:/bundles/platform:ro
+      - simlab-data:/data
+    ports:
+      - "8084:8084"
+    depends_on:
+      stream-control-api:
+        condition: service_healthy
+      alert-control-api:
+        condition: service_healthy
+      simlab-db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8084/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
   # ── Platform context ────────────────────────────────────────────────
 
   portal-backend:
     build:
       context: ../../..
-      dockerfile: raksha-deployments/environments/local/dockerfiles/portal-backend.Dockerfile
+      dockerfile: raksha-deployments/environments/local/dockerfiles/raksha-portal.Dockerfile
+      target: backend
     environment:
       NODE_ENV: development
       BACKEND_PORT: 3001
@@ -261,14 +327,15 @@ services:
       DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_portal
       DATABASE_POOL_SIZE: 10
       CORS_ORIGINS: http://localhost:3000,http://localhost:3002
-      INTERNAL_SERVICE_TOKEN: dev-service-token-local
-      # Peer-tokens for proxying into bounded-context services.
-      PEER_TOKEN_ENGINE: dev-peer-token-engine
-      PEER_TOKEN_NOTIFIER_GATEWAY: dev-peer-token-notifier-gateway
-      PEER_TOKEN_EVENT_GATEWAY: dev-peer-token-event-gateway
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
+      PEER_TOKEN_ENGINE: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine}
+      PEER_TOKEN_NOTIFIER_GATEWAY: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway}
+      PEER_TOKEN_EVENT_GATEWAY: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway}
+      PEER_TOKEN_SIMLAB: ${PEER_TOKEN_SIMLAB:-dev-peer-token-simlab}
       ENGINE_BASE_URL: http://rule-control-api:8082
       NOTIFIER_BASE_URL: http://alert-control-api:8083
       EVENT_GATEWAY_BASE_URL: http://ingestion-gateway:8080
+      SIMLAB_BASE_URL: http://simlab-api:8084
       # stream-control-api is the Go CRUD surface of raksha-ingestion-gateway
       # (sibling of ingestion-gateway the Rust runtime). ingestion-proxy
       # in portal-backend uses this URL for datasource + stream CRUD.
@@ -284,6 +351,8 @@ services:
         condition: service_healthy
       stream-control-api:
         condition: service_healthy
+      simlab-api:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3001/healthz >/dev/null || exit 1"]
       interval: 10s
@@ -294,13 +363,12 @@ services:
   portal:
     build:
       context: ../../..
-      dockerfile: raksha-deployments/environments/local/dockerfiles/nextjs-app.Dockerfile
+      dockerfile: raksha-deployments/environments/local/dockerfiles/raksha-portal.Dockerfile
+      target: portal
       args:
-        APP_NAME: portal
-        APP_PORT: "3000"
         NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
     environment:
-      RAKSHA_WEB_SESSION_SECRET: raksha-local-dev-session-secret-32chars
+      RAKSHA_WEB_SESSION_SECRET: ${RAKSHA_WEB_SESSION_SECRET:-raksha-local-dev-session-secret-32chars}
       RAKSHA_DEV_AUTOLOGIN: "true"
       RAKSHA_DEV_TENANT_ID: "00000000-0000-0000-0000-000000000001"
       RAKSHA_DEV_USER_SUB: "00000000-0000-0000-0000-0000000000aa"
@@ -308,8 +376,9 @@ services:
       RAKSHA_WEB_SECURE_COOKIES: "false"
       API_SERVICE_URL: http://portal-backend:3001
       CONTROL_SERVICE_URL: http://portal-backend:3001
-      RAKSHA_API_KEY: dev-service-token-local
-      AUTH_INTERNAL_SERVICE_TOKEN: dev-service-token-local
+      LAB_SERVICE_URL: http://simlab-api:8084
+      RAKSHA_API_KEY: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
+      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
     ports:
       - "3000:3000"
     depends_on:
@@ -326,19 +395,18 @@ services:
   admin:
     build:
       context: ../../..
-      dockerfile: raksha-deployments/environments/local/dockerfiles/nextjs-app.Dockerfile
+      dockerfile: raksha-deployments/environments/local/dockerfiles/raksha-portal.Dockerfile
+      target: admin
       args:
-        APP_NAME: admin
-        APP_PORT: "3002"
         NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
     environment:
-      RAKSHA_ADMIN_SESSION_SECRET: raksha-local-admin-session-secret-32chars
+      RAKSHA_ADMIN_SESSION_SECRET: ${RAKSHA_ADMIN_SESSION_SECRET:-raksha-local-admin-session-secret-32chars}
       RAKSHA_ADMIN_DEV_AUTOLOGIN: "true"
       RAKSHA_ADMIN_DEV_TOKEN: dev-service-token-local
       RAKSHA_ADMIN_SECURE_COOKIES: "false"
       ADMIN_API_BASE_URL: http://portal-backend:3001
-      RAKSHA_API_KEY: dev-service-token-local
-      AUTH_INTERNAL_SERVICE_TOKEN: dev-service-token-local
+      RAKSHA_API_KEY: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
+      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
     ports:
       - "3002:3002"
     depends_on:
@@ -358,3 +426,4 @@ volumes:
   miniodata:
   engine-data:
   notifier-data:
+  simlab-data:

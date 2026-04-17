@@ -7,7 +7,10 @@
 #   ./stack down            # stop containers, keep DB volumes
 #   ./stack down -v         # stop containers AND wipe DB volumes (fresh DB)
 #   ./stack reset           # alias for `./stack down -v`
-#   ./stack logs            # follow logs
+#   ./stack logs            # follow all logs
+#   ./stack logs portal-backend  # follow one service
+#   ./stack errors          # follow only error/warn lines (all services)
+#   ./stack errors engine   # follow only error/warn lines (one service)
 #   ./stack status          # print health of each service
 set -euo pipefail
 
@@ -49,6 +52,7 @@ cmd_up() {
   admin  (ops UI)           http://localhost:3002
   portal-backend REST       http://localhost:3001
   portal-backend Swagger    http://localhost:3001/v1/openapi
+  simlab-api                http://localhost:8084   (simulation CRUD; peer-only)
   rule-control-api          http://localhost:8085   (detection CRUD; peer-token)
   alert-control-api         http://localhost:8086   (delivery CRUD; peer-token)
   ingestion-gateway health  http://localhost:8080/health
@@ -61,7 +65,10 @@ cmd_up() {
   redis                     localhost:6379
 
 ==> next steps
-  ./stack logs            # tail logs
+  ./stack logs            # tail all logs
+  ./stack logs engine     # tail one service
+  ./stack errors          # errors/warnings only (fast triage)
+  ./stack errors engine   # errors for one service
   ./stack status          # re-check health
   ./stack down            # stop (keep data)
   ./stack reset           # stop + wipe volumes
@@ -93,13 +100,28 @@ cmd_reset() {
 }
 
 cmd_logs() {
-  $COMPOSE logs -f --tail=100
+  # ./stack logs [service...]
+  $COMPOSE logs -f --tail=100 "$@"
+}
+
+# Errors-only view: filters log output to lines containing error/warn/panic
+# keywords. Covers Go (ERROR, WARN, panic), Rust (ERROR, WARN), NestJS
+# (ERROR, WARN), and Next.js (error, Error) output.
+#
+# Usage:
+#   ./stack errors                     # all services
+#   ./stack errors portal-backend      # one service
+#   ./stack errors engine notifier-runtime  # multiple services
+cmd_errors() {
+  $COMPOSE logs -f --tail=500 "$@" 2>&1 \
+    | grep --line-buffered -iE \
+        'error|ERR|warn|WARN|panic|PANIC|fatal|FATAL|failed|FAIL|exception|unhandled|rejected|exit.*(1|code)|cannot find module|relation.*does not exist|connection refused'
 }
 
 cmd_status() {
   echo "==> service status"
   # Prints the health of each non-oneshot service.
-  for svc in postgres redis minio rule-control-api alert-control-api stream-control-api engine notifier-runtime ingestion-gateway portal-backend portal admin; do
+  for svc in postgres redis minio rule-control-api alert-control-api stream-control-api simlab-api engine notifier-runtime ingestion-gateway portal-backend portal admin; do
     local health
     health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "raksha-local-${svc}-1" 2>/dev/null || echo "missing")
     printf "  %-22s %s\n" "$svc" "$health"
@@ -107,7 +129,7 @@ cmd_status() {
 }
 
 status_ok() {
-  for svc in postgres redis minio rule-control-api alert-control-api stream-control-api engine notifier-runtime ingestion-gateway portal-backend portal admin; do
+  for svc in postgres redis minio rule-control-api alert-control-api stream-control-api simlab-api engine notifier-runtime ingestion-gateway portal-backend portal admin; do
     local health
     health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "raksha-local-${svc}-1" 2>/dev/null || echo "missing")
     case "$health" in
@@ -124,7 +146,8 @@ case "$cmd" in
   up)     cmd_up "$@" ;;
   down)   cmd_down "$@" ;;
   reset)  cmd_reset ;;
-  logs)   cmd_logs ;;
+  logs)   cmd_logs "$@" ;;
+  errors) cmd_errors "$@" ;;
   status) cmd_status ;;
-  *) echo "usage: $0 {up|down [-v]|reset|logs|status}" >&2; exit 2 ;;
+  *) echo "usage: $0 {up|down [-v]|reset|logs [svc]|errors [svc]|status}" >&2; exit 2 ;;
 esac
