@@ -15,7 +15,7 @@ It defines deployment metadata shared across environments, including:
 
 ## Current Services
 
-The catalog covers the four bounded-context deploy groups:
+The catalog covers the five bounded-context deploy groups:
 
 | deploy_group | Services |
 |---|---|
@@ -23,6 +23,7 @@ The catalog covers the four bounded-context deploy groups:
 | `detection` | `rule-control-api` (Go), `engine` (Rust) — from `raksha-engine/apps/*` |
 | `delivery` | `alert-control-api` (Go), `notifier-runtime` (Rust) — from `raksha-notifier-gateway/apps/*` |
 | `ingestion` | `stream-control-api` (Go), `ingestion-gateway` (Rust) — from `raksha-ingestion-gateway/apps/*` |
+| `simulation` | `simlab-api` (Go) — from `raksha-simlab/apps/*` |
 
 ## Purpose
 

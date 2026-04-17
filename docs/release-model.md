@@ -6,7 +6,7 @@ This repository is the reviewed record of what is deployed in each environment.
 
 ## Flow
 
-1. Service CI in `raksha-portal`, `raksha-engine`, `raksha-notifier-gateway`, or `raksha-ingestion-gateway` publishes an image.
+1. Service CI in `raksha-portal`, `raksha-engine`, `raksha-notifier-gateway`, `raksha-ingestion-gateway`, or `raksha-simlab` publishes an image.
 2. A PR updates the matching `environments/<env>/services.yaml` file.
 3. Review verifies:
    - image version
@@ -30,6 +30,7 @@ The service catalog defines `rollout_order` so automation can sequence deploymen
 3. `rule-control-api`, then `engine` (detection context)
 4. `alert-control-api`, then `notifier-runtime` (delivery context)
 5. `stream-control-api`, then `ingestion-gateway` (ingestion context)
+6. `simlab-api` (simulation context)
 
 ## Future Extension
 

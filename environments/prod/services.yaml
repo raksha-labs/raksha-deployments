@@ -1,25 +1,25 @@
 version: 1
 environment: prod
 services:
-  platform-api:
+  portal-backend:
     image_tag: prod-approved
     desired_count: 2
     strategy: rolling
     config_profile: prod
 
-  platform-control:
-    image_tag: prod-approved
-    desired_count: 2
-    strategy: rolling
-    config_profile: prod
-
-  platform-portal:
+  portal:
     image_tag: prod-approved
     desired_count: 2
     strategy: blue_green
     config_profile: prod
 
-  platform-admin:
+  admin:
+    image_tag: prod-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: prod
+
+  rule-control-api:
     image_tag: prod-approved
     desired_count: 2
     strategy: rolling
@@ -28,19 +28,37 @@ services:
   # Runtime services — baseline 2 tasks; ECS target-tracking autoscaling
   # scales up on CPU + queue-depth metrics. Do NOT set floor below 2 in
   # prod: lease coordination needs at least one survivor during deploys.
-  event-gateway:
-    image_tag: prod-approved
-    desired_count: 2
-    strategy: rolling
-    config_profile: prod
-
   engine:
     image_tag: prod-approved
     desired_count: 2
     strategy: rolling
     config_profile: prod
 
-  notifier-gateway:
+  alert-control-api:
+    image_tag: prod-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: prod
+
+  notifier-runtime:
+    image_tag: prod-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: prod
+
+  stream-control-api:
+    image_tag: prod-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: prod
+
+  ingestion-gateway:
+    image_tag: prod-approved
+    desired_count: 2
+    strategy: rolling
+    config_profile: prod
+
+  simlab-api:
     image_tag: prod-approved
     desired_count: 2
     strategy: rolling

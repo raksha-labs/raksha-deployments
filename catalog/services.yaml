@@ -1,5 +1,5 @@
 version: 2
-# Updated 2026-04-16 for the four-context bounded-context architecture.
+# Updated 2026-04-17 for the five-context bounded-context architecture.
 # Each service belongs to exactly one repo and deploys with its peers in
 # the deploy_group below.
 services:
@@ -77,4 +77,13 @@ services:
     image_repo: raksha-ingestion-gateway
     deploy_group: ingestion
     rollout_order: 90
+    default_strategy: rolling
+
+  # ── Simulation context (raksha-simlab) ───────────────────────────
+  - name: simlab-api
+    source_repo: raksha-simlab
+    source_path: apps/simlab-api
+    image_repo: raksha-simlab-api
+    deploy_group: simulation
+    rollout_order: 100
     default_strategy: rolling

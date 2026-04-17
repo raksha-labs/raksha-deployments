@@ -21,6 +21,59 @@ Create these GitHub Environments:
 
 Use protection rules for `stage` and `prod` so promotion PRs and any rollout workflows cannot bypass approval.
 
+## Bulk Repo Variable Setup
+
+Do not set the deploy repo variables one-by-one in the GitHub UI.
+
+Use the checked-in example file:
+
+- `config/github/repo-vars.dev.example.json`
+
+Copy it to a local values file, fill in the real AWS IDs / JSON env maps, then run:
+
+```bash
+cp raksha-deployments/config/github/repo-vars.dev.example.json /tmp/raksha-github-vars.dev.json
+$EDITOR /tmp/raksha-github-vars.dev.json
+
+export GITHUB_TOKEN=...   # PAT or GitHub App user token with repo admin/actions variable permissions
+python3 raksha-deployments/scripts/apply_github_repo_vars.py \
+  --config /tmp/raksha-github-vars.dev.json \
+  --apply
+```
+
+Dry-run first if you want to inspect what will change:
+
+```bash
+python3 raksha-deployments/scripts/apply_github_repo_vars.py \
+  --config /tmp/raksha-github-vars.dev.json
+```
+
+What the script does:
+
+- creates `dev`, `stage`, and `prod` GitHub environments for each listed repo
+- upserts repo-level Actions variables through the GitHub REST API
+- prints the small `required_secrets` checklist per repo
+
+What you no longer need to set manually:
+
+- VPC IDs
+- private/public subnet IDs
+- peer caller security-group IDs
+
+Those are now derived by the service Terraform from the shared core/platform
+AWS contract in SSM (`/raksha/<env>/core/...`).
+
+What it does not do:
+
+- it does not store or push secret values from the checked-in example file
+- secrets such as `AWS_INFRA_ROLE_ARN`, `TF_BACKEND_BUCKET`, `TF_BACKEND_DYNAMODB_TABLE`, `CROSS_REPO_READ_TOKEN`, and `CROSS_REPO_DISPATCH_TOKEN` should still be set in GitHub Secrets
+
+The intended flow is:
+
+1. fill one local JSON file
+2. run one script
+3. set the few remaining secrets once
+
 ## Recommended Status Checks
 
 Recommended required checks on `main`:

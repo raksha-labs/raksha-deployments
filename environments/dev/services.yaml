@@ -1,31 +1,25 @@
 version: 1
 environment: dev
 services:
-  platform-api:
+  portal-backend:
     image_tag: dev-main
     desired_count: 1
     strategy: rolling
     config_profile: dev
 
-  platform-control:
+  portal:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: blue_green
+    config_profile: dev
+
+  admin:
     image_tag: dev-main
     desired_count: 1
     strategy: rolling
     config_profile: dev
 
-  platform-portal:
-    image_tag: dev-main
-    desired_count: 1
-    strategy: rolling
-    config_profile: dev
-
-  platform-admin:
-    image_tag: dev-main
-    desired_count: 1
-    strategy: rolling
-    config_profile: dev
-
-  event-gateway:
+  rule-control-api:
     image_tag: dev-main
     desired_count: 1
     strategy: rolling
@@ -37,7 +31,31 @@ services:
     strategy: rolling
     config_profile: dev
 
-  notifier-gateway:
+  alert-control-api:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  notifier-runtime:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  stream-control-api:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  ingestion-gateway:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  simlab-api:
     image_tag: dev-main
     desired_count: 1
     strategy: rolling

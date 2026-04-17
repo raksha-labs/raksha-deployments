@@ -60,7 +60,7 @@ name: Deploy <Project>
 on:
   workflow_dispatch:
     inputs:
-      environment: { type: choice, options: [test, stage, prod] }
+      environment: { type: choice, options: [dev, stage, prod] }
       image_tag:   { type: string, default: latest }
       build_image: { type: boolean, default: true }
 
@@ -108,6 +108,15 @@ Run `dispatch-deploy.yml` from this repo to roll an entire bounded context
 Example: roll the **delivery** bounded context to `stage` with the current
 sha — one click in the Actions UI of `raksha-deployments`.
 
+Current deploy groups:
+
+- `portal`
+- `detection`
+- `delivery`
+- `ingestion`
+- `simulation`
+- `all`
+
 ## Ref selection
 
 Consumers pin to `@main` by default. Switch to a release tag
@@ -127,3 +136,45 @@ Wire these once at the org or repo level (Settings → Secrets and variables):
 | secret   | `TF_BACKEND_DYNAMODB_TABLE`       | tfstate lock table                |
 | variable | `AWS_REGION`                      | default eu-west-1                 |
 | variable | `RAKSHA_<PROJECT>_*`              | project-specific tf vars          |
+
+### Required repo variables for manual `dev` deploys
+
+The deploy workflows now derive shared network placement from the existing
+core/platform AWS contract in SSM (`/raksha/<env>/core/...`). You do not
+need to set raw VPC IDs, subnet IDs, or peer security-group IDs in GitHub.
+
+Portal (`raksha-portal`)
+
+- `RAKSHA_PORTAL_ALB_ACM_CERT_ARN`
+- `RAKSHA_PORTAL_BACKEND_STATIC_ENV`
+- `RAKSHA_PORTAL_BACKEND_SECRET_ENV`
+- `RAKSHA_PORTAL_STATIC_ENV`
+- `RAKSHA_PORTAL_SECRET_ENV`
+- `RAKSHA_ADMIN_STATIC_ENV`
+- `RAKSHA_ADMIN_SECRET_ENV`
+
+Detection (`raksha-engine`)
+
+- `RAKSHA_ENGINE_STATIC_ENV`
+- `RAKSHA_ENGINE_SECRET_ENV`
+- `RAKSHA_RULE_CONTROL_STATIC_ENV`
+- `RAKSHA_RULE_CONTROL_SECRET_ENV`
+
+Delivery (`raksha-notifier-gateway`)
+
+- `RAKSHA_NOTIFIER_STATIC_ENV`
+- `RAKSHA_NOTIFIER_SECRET_ENV`
+- `RAKSHA_ALERT_CONTROL_STATIC_ENV`
+- `RAKSHA_ALERT_CONTROL_SECRET_ENV`
+
+Ingestion (`raksha-ingestion-gateway`)
+
+- `RAKSHA_INGESTION_STATIC_ENV`
+- `RAKSHA_INGESTION_SECRET_ENV`
+- `RAKSHA_STREAM_CONTROL_STATIC_ENV`
+- `RAKSHA_STREAM_CONTROL_SECRET_ENV`
+
+Simulation (`raksha-simlab`)
+
+- `RAKSHA_SIMLAB_STATIC_ENV`
+- `RAKSHA_SIMLAB_SECRET_ENV`

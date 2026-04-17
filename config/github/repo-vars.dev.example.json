@@ -1,0 +1,86 @@
+{
+  "owner": "raksha-labs",
+  "defaults": {
+    "environments": ["dev", "stage", "prod"]
+  },
+  "repos": {
+    "raksha-deployments": {
+      "variables": {
+        "AWS_REGION": "eu-west-1"
+      },
+      "required_secrets": [
+        "CROSS_REPO_DISPATCH_TOKEN"
+      ]
+    },
+    "raksha-portal": {
+      "variables": {
+        "RAKSHA_PORTAL_ALB_ACM_CERT_ARN": "arn:aws:acm:eu-west-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "RAKSHA_PORTAL_BACKEND_STATIC_ENV": "{\"DATABASE_URL\":\"postgres://...\",\"ENGINE_BASE_URL\":\"http://raksha-rule-control-api-dev.internal:8082\",\"NOTIFIER_BASE_URL\":\"http://raksha-alert-control-api-dev.internal:8083\",\"STREAM_CONTROL_BASE_URL\":\"http://raksha-stream-control-api-dev.internal:8081\",\"SIMLAB_BASE_URL\":\"http://raksha-simlab-api-dev.internal:8084\"}",
+        "RAKSHA_PORTAL_BACKEND_SECRET_ENV": "{\"COOKIE_SECRET\":\"arn:aws:secretsmanager:...:secret:portal-backend-cookie\",\"DATABASE_PASSWORD\":\"arn:aws:secretsmanager:...:secret:portal-db-password\"}",
+        "RAKSHA_PORTAL_STATIC_ENV": "{\"NEXT_PUBLIC_API_BASE\":\"https://portal.dev.raksha.local\"}",
+        "RAKSHA_PORTAL_SECRET_ENV": "{}",
+        "RAKSHA_ADMIN_STATIC_ENV": "{\"NEXT_PUBLIC_ADMIN_API_BASE\":\"https://admin.dev.raksha.local\"}",
+        "RAKSHA_ADMIN_SECRET_ENV": "{}"
+      },
+      "required_secrets": [
+        "AWS_INFRA_ROLE_ARN",
+        "TF_BACKEND_BUCKET",
+        "TF_BACKEND_DYNAMODB_TABLE",
+        "CROSS_REPO_READ_TOKEN"
+      ]
+    },
+    "raksha-engine": {
+      "variables": {
+        "RAKSHA_ENGINE_STATIC_ENV": "{\"DATABASE_URL\":\"postgres://...\",\"REDIS_URL\":\"redis://...\"}",
+        "RAKSHA_ENGINE_SECRET_ENV": "{}",
+        "RAKSHA_RULE_CONTROL_STATIC_ENV": "{\"DATABASE_URL\":\"postgres://...\"}",
+        "RAKSHA_RULE_CONTROL_SECRET_ENV": "{}"
+      },
+      "required_secrets": [
+        "AWS_INFRA_ROLE_ARN",
+        "TF_BACKEND_BUCKET",
+        "TF_BACKEND_DYNAMODB_TABLE",
+        "CROSS_REPO_READ_TOKEN"
+      ]
+    },
+    "raksha-notifier-gateway": {
+      "variables": {
+        "RAKSHA_NOTIFIER_STATIC_ENV": "{\"DATABASE_URL\":\"postgres://...\",\"REDIS_URL\":\"redis://...\"}",
+        "RAKSHA_NOTIFIER_SECRET_ENV": "{}",
+        "RAKSHA_ALERT_CONTROL_STATIC_ENV": "{\"DATABASE_URL\":\"postgres://...\"}",
+        "RAKSHA_ALERT_CONTROL_SECRET_ENV": "{}"
+      },
+      "required_secrets": [
+        "AWS_INFRA_ROLE_ARN",
+        "TF_BACKEND_BUCKET",
+        "TF_BACKEND_DYNAMODB_TABLE",
+        "CROSS_REPO_READ_TOKEN"
+      ]
+    },
+    "raksha-ingestion-gateway": {
+      "variables": {
+        "RAKSHA_INGESTION_STATIC_ENV": "{\"DATABASE_URL\":\"postgres://...\",\"REDIS_URL\":\"redis://...\"}",
+        "RAKSHA_INGESTION_SECRET_ENV": "{}",
+        "RAKSHA_STREAM_CONTROL_STATIC_ENV": "{\"DATABASE_URL\":\"postgres://...\"}",
+        "RAKSHA_STREAM_CONTROL_SECRET_ENV": "{}"
+      },
+      "required_secrets": [
+        "AWS_INFRA_ROLE_ARN",
+        "TF_BACKEND_BUCKET",
+        "TF_BACKEND_DYNAMODB_TABLE",
+        "CROSS_REPO_READ_TOKEN"
+      ]
+    },
+    "raksha-simlab": {
+      "variables": {
+        "RAKSHA_SIMLAB_STATIC_ENV": "{\"DATABASE_URL\":\"postgres://...\",\"RULE_CONTROL_URL\":\"http://raksha-rule-control-api-dev.internal:8082\",\"NOTIFIER_URL\":\"http://raksha-alert-control-api-dev.internal:8083\",\"STREAM_CONTROL_URL\":\"http://raksha-stream-control-api-dev.internal:8081\"}",
+        "RAKSHA_SIMLAB_SECRET_ENV": "{}"
+      },
+      "required_secrets": [
+        "AWS_INFRA_ROLE_ARN",
+        "TF_BACKEND_BUCKET",
+        "TF_BACKEND_DYNAMODB_TABLE"
+      ]
+    }
+  }
+}

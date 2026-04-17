@@ -4,31 +4,25 @@ services:
   # Stage runs a single task per service — it's pre-prod verification,
   # not a high-availability environment. Bump to 2 only when validating
   # rolling-deploy behaviour for a specific release.
-  platform-api:
+  portal-backend:
     image_tag: stage-approved
     desired_count: 1
     strategy: rolling
     config_profile: stage
 
-  platform-control:
-    image_tag: stage-approved
-    desired_count: 1
-    strategy: rolling
-    config_profile: stage
-
-  platform-portal:
+  portal:
     image_tag: stage-approved
     desired_count: 1
     strategy: blue_green
     config_profile: stage
 
-  platform-admin:
+  admin:
     image_tag: stage-approved
     desired_count: 1
     strategy: rolling
     config_profile: stage
 
-  event-gateway:
+  rule-control-api:
     image_tag: stage-approved
     desired_count: 1
     strategy: rolling
@@ -40,7 +34,31 @@ services:
     strategy: rolling
     config_profile: stage
 
-  notifier-gateway:
+  alert-control-api:
+    image_tag: stage-approved
+    desired_count: 1
+    strategy: rolling
+    config_profile: stage
+
+  notifier-runtime:
+    image_tag: stage-approved
+    desired_count: 1
+    strategy: rolling
+    config_profile: stage
+
+  stream-control-api:
+    image_tag: stage-approved
+    desired_count: 1
+    strategy: rolling
+    config_profile: stage
+
+  ingestion-gateway:
+    image_tag: stage-approved
+    desired_count: 1
+    strategy: rolling
+    config_profile: stage
+
+  simlab-api:
     image_tag: stage-approved
     desired_count: 1
     strategy: rolling

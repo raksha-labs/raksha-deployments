@@ -17,7 +17,7 @@ on:
         required: true
         type: choice
         options:
-          - test
+          - dev
           - stage
           - prod
       deploy_group:
@@ -30,6 +30,7 @@ on:
           - detection
           - delivery
           - ingestion
+          - simulation
       image_tag:
         description: Image tag (typically the commit sha, or 'latest' for non-prod)
         required: true
