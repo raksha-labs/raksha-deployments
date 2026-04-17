@@ -11,14 +11,23 @@ cd raksha-deployments/environments/local
 ./stack reset     # stop + wipe volumes (fresh DB)
 ```
 
+## Naming convention
+
+- Shared platform API: `portal-backend`
+- Control APIs: `*-control-api`
+- Runtime workers: `engine`, `notifier-runtime`, `ingestion-gateway`
+- Simulation API: `simlab-api`
+
+Local stack and AWS service catalogs follow the same operator-facing names.
+
 ## Endpoints after startup
 
 | Service | URL |
 |---|---|
 | **Portal (user UI)** | http://localhost:3000 |
 | **Admin (ops UI)** | http://localhost:3002 |
-| portal-backend REST | http://localhost:3001 |
-| portal-backend Swagger | http://localhost:3001/v1/openapi |
+| platform API (`portal-backend`, shared by portal + admin) | http://localhost:3001 |
+| platform API Swagger | http://localhost:3001/v1/openapi |
 | rule-control-api (detection CRUD) | http://localhost:8085 |
 | alert-control-api (delivery CRUD) | http://localhost:8086 |
 | simlab-api (simulation CRUD) | http://localhost:8084 |
@@ -71,7 +80,7 @@ ingestion-gateway → redis:events.* → engine
                                                           ↓ dispatches to channels
 ```
 
-Every config change in the portal UI flows: **portal → portal-backend → rule-control-api / alert-control-api / simlab-api**. Detection + delivery updates still rebuild snapshots and wake the Rust runtimes via long-poll.
+Every config change in the portal or admin UI flows through the shared platform API: **portal/admin → portal-backend → rule-control-api / alert-control-api / simlab-api**. Detection + delivery updates still rebuild snapshots and wake the Rust runtimes via long-poll.
 
 ## S3 archive
 

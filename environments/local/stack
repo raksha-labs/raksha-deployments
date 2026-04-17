@@ -50,8 +50,8 @@ cmd_up() {
 ==> endpoints
   portal (user UI)          http://localhost:3000
   admin  (ops UI)           http://localhost:3002
-  portal-backend REST       http://localhost:3001
-  portal-backend Swagger    http://localhost:3001/v1/openapi
+  platform API              http://localhost:3001   (service: portal-backend; shared by portal + admin)
+  platform API Swagger      http://localhost:3001/v1/openapi
   simlab-api                http://localhost:8084   (simulation CRUD; peer-only)
   rule-control-api          http://localhost:8085   (detection CRUD; peer-token)
   alert-control-api         http://localhost:8086   (delivery CRUD; peer-token)

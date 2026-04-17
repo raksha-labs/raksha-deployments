@@ -13,9 +13,10 @@
 #                       orchestration, and result inspection.
 #
 #   ── platform context (raksha-portal/) ──────────────────────────────
-#   portal-backend      NestJS API — proxies detection + delivery.
+#   portal-backend      Shared platform API (NestJS) for both portal and
+#                       admin UIs; also proxies detection + delivery.
 #   portal              customer Next.js UI (BFF → portal-backend).
-#   admin               internal Next.js UI.
+#   admin               internal Next.js UI (BFF → portal-backend).
 #
 #   ── detection context (raksha-engine/) ─────────────────────────────
 #   rule-control-api    Go CRUD: patterns + versions + snapshots.

@@ -84,12 +84,12 @@ ON CONFLICT (plan_id, feature_key) DO UPDATE SET
     category = EXCLUDED.category,
     enabled = EXCLUDED.enabled;
 
--- ─── Reserved _platform tenant ─────────────────────────────────────────────
+-- ─── Reserved platform tenant ──────────────────────────────────────────────
 -- Assets owned by this tenant are scope='platform' (auto-computed from the
 -- well-known UUID). All bounded contexts use the same UUID constant:
 --   00000000-0000-0000-0000-ffffffffffff
 INSERT INTO tenants.tenants (id, display_name, slug, plan_id)
-VALUES ('00000000-0000-0000-0000-ffffffffffff', 'Raksha Platform', '_platform', 'enterprise')
+VALUES ('00000000-0000-0000-0000-ffffffffffff', 'Raksha Platform', 'platform', 'enterprise')
 ON CONFLICT (id) DO UPDATE SET display_name = 'Raksha Platform';
 
 -- ─── Regular dev tenant ───────────────────────────────────────────────────
@@ -118,7 +118,7 @@ INSERT INTO iam.users (id, email, display_name, is_platform_admin)
 VALUES ('00000000-0000-0000-0000-0000000000dd', 'viewer@local-dev.local', 'Tenant Viewer', false)
 ON CONFLICT (email) DO UPDATE SET display_name = 'Tenant Viewer';
 
--- ─── Membership: _platform tenant ────────────────────────────────────────
+-- ─── Membership: platform tenant ──────────────────────────────────────────
 -- Dev user is platform_owner, editor is platform_editor
 INSERT INTO tenants.tenant_members (tenant_id, user_id, role, accepted_at) VALUES
   ('00000000-0000-0000-0000-ffffffffffff', '00000000-0000-0000-0000-0000000000aa', 'platform_owner', now()),

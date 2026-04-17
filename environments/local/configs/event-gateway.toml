@@ -1,4 +1,4 @@
-# Event-gateway configuration for the local-stack.
+# ingestion-gateway configuration for the local stack.
 # Leans on Rust struct defaults (every section is `#[serde(default)]`);
 # only non-default fields are explicit here.
 
@@ -33,7 +33,7 @@ kind = "http"
 endpoint = "http://stream-control-api:8081"
 tenant_id = "00000000-0000-0000-0000-000000000001"
 peer_token = "dev-peer-token-event-gateway"
-peer_name = "event-gateway"
+peer_name = "ingestion-gateway"
 http_watch_timeout_secs = 25
 http_poll_interval_secs = 5
 
