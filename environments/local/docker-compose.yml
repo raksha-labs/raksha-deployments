@@ -378,6 +378,8 @@ services:
       API_SERVICE_URL: http://portal-backend:3001
       CONTROL_SERVICE_URL: http://portal-backend:3001
       LAB_SERVICE_URL: http://simlab-api:8084
+      SIMLAB_BASE_URL: http://simlab-api:8084
+      PEER_TOKEN_SIMLAB: ${PEER_TOKEN_SIMLAB:-dev-peer-token-simlab}
       RAKSHA_API_KEY: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
       AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
     ports:

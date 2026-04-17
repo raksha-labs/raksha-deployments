@@ -6,8 +6,8 @@ connector_type = "redis"
 
 [source.redis]
 url = "redis://redis:6379"
-stream_key = "raksha:events.00000000-0000-0000-0000-000000000001.unified"
-stream_keys = ["raksha:events.00000000-0000-0000-0000-000000000001.unified"]
+stream_key = "raksha:events.00000000-0000-0000-0000-ffffffffffff.unified"
+stream_keys = ["raksha:events.00000000-0000-0000-0000-ffffffffffff.unified"]
 group_name = "raksha-engine"
 consumer_name = "worker-0"
 batch_size = 1
@@ -42,7 +42,7 @@ bind_address = "0.0.0.0:9090"
 # Long-poll subscriber pulls runtime snapshots from rule-control-api.
 [config_source]
 endpoint = "http://rule-control-api:8082"
-tenant_ids = ["00000000-0000-0000-0000-000000000001"]
+tenant_ids = ["00000000-0000-0000-0000-ffffffffffff"]
 peer_token = "dev-peer-token-engine"
 version_store_path = "/data/version-store"
 peer_name = "engine"

@@ -31,7 +31,7 @@ bind_address = "0.0.0.0:9090"
 # HTTP long-poll to stream-control-api for runtime stream snapshots.
 kind = "http"
 endpoint = "http://stream-control-api:8081"
-tenant_id = "00000000-0000-0000-0000-000000000001"
+tenant_id = "00000000-0000-0000-0000-ffffffffffff"
 peer_token = "dev-peer-token-event-gateway"
 peer_name = "ingestion-gateway"
 http_watch_timeout_secs = 25
