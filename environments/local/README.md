@@ -51,13 +51,13 @@ Every cross-repo HTTP call uses a single env-var bearer token:
 |---|---|---|
 | portal-backend → rule-control-api | `PEER_TOKEN_ENGINE` | `RULE_CONTROL_INTERNAL_PEER_TOKEN` |
 | portal-backend → alert-control-api | `PEER_TOKEN_NOTIFIER_GATEWAY` | `ALERT_CONTROL_INTERNAL_PEER_TOKEN` |
-| portal-backend → simlab-api | `PEER_TOKEN_SIMLAB` | n/a in local v1 |
+| portal-backend → simlab-api | `PEER_TOKEN_SIMLAB` | `SIMLAB_INTERNAL_PEER_TOKEN` |
 | engine → rule-control-api | `RAKSHA_CONFIG_SOURCE__PEER_TOKEN` | `RULE_CONTROL_INTERNAL_PEER_TOKEN` |
 | notifier-runtime → alert-control-api | `ALERT_CONTROL_PEER_TOKEN` | `ALERT_CONTROL_INTERNAL_PEER_TOKEN` |
 | simlab-api → stream-control-api | `SIMLAB_INGESTION_SIM_PEER_TOKEN` | `STREAM_CONTROL_INTERNAL_PEER_TOKEN` |
 | simlab-api → alert-control-api | `SIMLAB_NOTIFIER_PEER_TOKEN` | `ALERT_CONTROL_INTERNAL_PEER_TOKEN` |
 
-Local-stack uses fixed dev tokens (`dev-peer-token-engine`, `dev-peer-token-notifier-gateway`) wired through compose env so all sides match. **Never reuse in staging/prod.**
+Local-stack uses fixed dev tokens (`dev-peer-token-engine`, `dev-peer-token-notifier-gateway`, `dev-peer-token-event-gateway`, `dev-peer-token-simlab`) wired through compose env so all sides match. **Never reuse in staging/prod.**
 
 ## Event flow (live in this stack)
 

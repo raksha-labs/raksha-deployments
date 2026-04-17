@@ -138,7 +138,7 @@ services:
     environment:
       RUST_LOG: info
       RAKSHA_CONFIG_SOURCE__ENDPOINT: http://rule-control-api:8082
-      RAKSHA_CONFIG_SOURCE__TENANT_ID: "00000000-0000-0000-0000-000000000001"
+      RAKSHA_CONFIG_SOURCE__TENANT_IDS: "00000000-0000-0000-0000-000000000001"
       RAKSHA_CONFIG_SOURCE__PEER_TOKEN: dev-peer-token-engine
       RAKSHA_CONFIG_SOURCE__VERSION_STORE_PATH: /data/version-store
       RAKSHA_CONFIG_SOURCE__WATCH_TIMEOUT_SECS: "25"
@@ -187,7 +187,7 @@ services:
       RUST_LOG: info
       REDIS_URL: redis://redis:6379
       NOTIFIER_CONFIG_SOURCE_ENDPOINT: http://alert-control-api:8083
-      NOTIFIER_TENANT_ID: "00000000-0000-0000-0000-000000000001"
+      NOTIFIER_TENANT_IDS: "00000000-0000-0000-0000-000000000001"
       ALERT_CONTROL_PEER_TOKEN: dev-peer-token-notifier-gateway
       NOTIFIER_VERSION_STORE_PATH: /data/version-store
       HEALTH_CHECK_PORT: "8080"
@@ -287,6 +287,7 @@ services:
       SIMLAB_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_simlab?sslmode=disable
       SIMLAB_BUNDLE_ROOTS: /bundles/platform
       SIMLAB_BUNDLE_STORE_DIR: /data/bundles
+      SIMLAB_INTERNAL_PEER_TOKEN: dev-peer-token-simlab
       SIMLAB_INGESTION_SIM_BASE_URL: http://stream-control-api:8081
       SIMLAB_INGESTION_SIM_PEER_TOKEN: dev-peer-token-event-gateway
       SIMLAB_RULE_CONTROL_BASE_URL: http://rule-control-api:8082
@@ -369,10 +370,9 @@ services:
         NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
     environment:
       RAKSHA_WEB_SESSION_SECRET: ${RAKSHA_WEB_SESSION_SECRET:-raksha-local-dev-session-secret-32chars}
-      RAKSHA_DEV_AUTOLOGIN: "true"
-      RAKSHA_DEV_TENANT_ID: "00000000-0000-0000-0000-000000000001"
-      RAKSHA_DEV_USER_SUB: "00000000-0000-0000-0000-0000000000aa"
-      RAKSHA_DEV_USER_EMAIL: dev@raksha.local
+      RAKSHA_DEV_AUTOLOGIN: "false"
+      RAKSHA_WEB_LOCAL_LOGIN_ENABLED: "true"
+      RAKSHA_WEB_SEEDED_LOGIN_FALLBACK_ENABLED: "true"
       RAKSHA_WEB_SECURE_COOKIES: "false"
       API_SERVICE_URL: http://portal-backend:3001
       CONTROL_SERVICE_URL: http://portal-backend:3001
@@ -401,8 +401,9 @@ services:
         NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
     environment:
       RAKSHA_ADMIN_SESSION_SECRET: ${RAKSHA_ADMIN_SESSION_SECRET:-raksha-local-admin-session-secret-32chars}
-      RAKSHA_ADMIN_DEV_AUTOLOGIN: "true"
-      RAKSHA_ADMIN_DEV_TOKEN: dev-service-token-local
+      RAKSHA_ADMIN_DEV_AUTOLOGIN: "false"
+      RAKSHA_ADMIN_LOCAL_LOGIN_ENABLED: "true"
+      RAKSHA_ADMIN_DEV_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
       RAKSHA_ADMIN_SECURE_COOKIES: "false"
       ADMIN_API_BASE_URL: http://portal-backend:3001
       RAKSHA_API_KEY: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
