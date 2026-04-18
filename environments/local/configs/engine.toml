@@ -6,8 +6,8 @@ connector_type = "redis"
 
 [source.redis]
 url = "redis://redis:6379"
-stream_key = "raksha:events.00000000-0000-0000-0000-ffffffffffff.unified"
-stream_keys = ["raksha:events.00000000-0000-0000-0000-ffffffffffff.unified"]
+stream_key = "raksha:events.00000000-0000-0000-0000-000000000001.unified"
+stream_keys = ["raksha:events.00000000-0000-0000-0000-000000000001.unified"]
 group_name = "raksha-engine"
 consumer_name = "worker-0"
 batch_size = 1
