@@ -185,6 +185,7 @@ services:
       context: ../../..
       dockerfile: raksha-deployments/environments/local/dockerfiles/notifier-gateway.Dockerfile
     environment:
+      NODE_ENV: development
       RUST_LOG: info
       REDIS_URL: redis://redis:6379
       NOTIFIER_CONFIG_SOURCE_ENDPOINT: http://alert-control-api:8083
@@ -192,6 +193,7 @@ services:
       ALERT_CONTROL_PEER_TOKEN: dev-peer-token-notifier-gateway
       NOTIFIER_VERSION_STORE_PATH: /data/version-store
       HEALTH_CHECK_PORT: "8080"
+      WORKBENCH_RECEIVER_BASE_URL: http://portal-backend:3001/v1/internal/receivers
       RAKSHA_WEB_PORTAL_URL: http://localhost:3000
     volumes:
       - ./configs/notifier-runtime.toml:/app/config.toml:ro
