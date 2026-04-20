@@ -12,12 +12,17 @@
 #   ./stack errors          # follow only error/warn lines (all services)
 #   ./stack errors engine   # follow only error/warn lines (one service)
 #   ./stack status          # print health of each service
+#   ./stack qa up           # start qa-web (end-to-end test runner) on :4000
+#   ./stack qa down         # stop qa-web
+#   ./stack qa logs         # follow qa-web logs
 set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
 COMPOSE="docker compose"
+QA_LAB_DIR="${SCRIPT_DIR}/../../../raksha-qa-lab"
+QA_COMPOSE="docker compose -f ${QA_LAB_DIR}/docker-compose.qa.yml --project-directory ${QA_LAB_DIR}"
 
 cmd_up() {
   echo "==> validating compose file"
@@ -70,9 +75,40 @@ cmd_up() {
   ./stack errors          # errors/warnings only (fast triage)
   ./stack errors engine   # errors for one service
   ./stack status          # re-check health
+  ./stack qa up           # start e2e test runner web UI on http://localhost:4000
   ./stack down            # stop (keep data)
   ./stack reset           # stop + wipe volumes
 EOF
+}
+
+cmd_qa() {
+  local qa_cmd="${1:-up}"
+  shift || true
+  if [[ ! -d "$QA_LAB_DIR" ]]; then
+    echo "!!! raksha-qa-lab not found at $QA_LAB_DIR" >&2
+    exit 1
+  fi
+  case "$qa_cmd" in
+    up)
+      if ! docker network inspect raksha-local_default >/dev/null 2>&1; then
+        echo "!!! raksha-local stack is not running. Start it first: ./stack up" >&2
+        exit 1
+      fi
+      echo "==> building qa-web image (first run only)"
+      $QA_COMPOSE build qa-web
+      echo "==> starting qa-web on http://localhost:4000"
+      $QA_COMPOSE up -d qa-web
+      echo "==> qa-web ready. Open http://localhost:4000"
+      ;;
+    down)
+      echo "==> stopping qa-web"
+      $QA_COMPOSE down || true
+      ;;
+    logs)
+      $QA_COMPOSE logs -f --tail=100 qa-web
+      ;;
+    *) echo "usage: $0 qa {up|down|logs}" >&2; exit 2 ;;
+  esac
 }
 
 cmd_down() {
@@ -149,5 +185,6 @@ case "$cmd" in
   logs)   cmd_logs "$@" ;;
   errors) cmd_errors "$@" ;;
   status) cmd_status ;;
-  *) echo "usage: $0 {up|down [-v]|reset|logs [svc]|errors [svc]|status}" >&2; exit 2 ;;
+  qa)     cmd_qa "$@" ;;
+  *) echo "usage: $0 {up|down [-v]|reset|logs [svc]|errors [svc]|status|qa {up|down|logs}}" >&2; exit 2 ;;
 esac
