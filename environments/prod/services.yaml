@@ -10,7 +10,7 @@ services:
   portal:
     image_tag: prod-approved
     desired_count: 2
-    strategy: blue_green
+    strategy: rolling
     config_profile: prod
 
   admin:

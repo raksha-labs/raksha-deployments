@@ -139,9 +139,10 @@ Wire these once at the org or repo level (Settings → Secrets and variables):
 
 ### Required repo variables for manual `dev` deploys
 
-The deploy workflows now derive shared network placement from the existing
-core/platform AWS contract in SSM (`/raksha/<env>/core/...`). You do not
-need to set raw VPC IDs, subnet IDs, or peer security-group IDs in GitHub.
+The deploy workflows now derive shared network placement from the
+foundation-infra compatibility SSM contract (`/raksha/<env>/core/...`).
+You do not need to set raw VPC IDs, subnet IDs, or peer security-group IDs
+in GitHub.
 
 Portal (`raksha-portal`)
 
@@ -152,6 +153,7 @@ Portal (`raksha-portal`)
 - `RAKSHA_PORTAL_SECRET_ENV`
 - `RAKSHA_ADMIN_STATIC_ENV`
 - `RAKSHA_ADMIN_SECRET_ENV`
+- `RAKSHA_ADMIN_ALLOWED_CIDR_BLOCKS` (`[]` to disable the IP gate, or a Terraform list like `["203.0.113.10/32"]`)
 
 Detection (`raksha-engine`)
 

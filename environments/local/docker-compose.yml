@@ -189,7 +189,7 @@ services:
       RUST_LOG: info
       REDIS_URL: redis://redis:6379
       NOTIFIER_CONFIG_SOURCE_ENDPOINT: http://alert-control-api:8083
-      NOTIFIER_TENANT_IDS: "00000000-0000-0000-0000-000000000001"
+      NOTIFIER_TENANT_IDS: "00000000-0000-0000-0000-ffffffffffff,00000000-0000-0000-0000-000000000001"
       ALERT_CONTROL_PEER_TOKEN: dev-peer-token-notifier-gateway
       AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
       NOTIFIER_VERSION_STORE_PATH: /data/version-store

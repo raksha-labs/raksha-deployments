@@ -10,7 +10,7 @@ services:
   portal:
     image_tag: dev-main
     desired_count: 1
-    strategy: blue_green
+    strategy: rolling
     config_profile: dev
 
   admin:

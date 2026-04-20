@@ -9,6 +9,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG_PATH = ROOT / "catalog" / "services.yaml"
 ENVIRONMENTS = ("dev", "stage", "prod")
+ALLOWED_STRATEGIES = {"rolling"}
 
 
 def load_yaml(path: Path) -> dict:
@@ -61,6 +62,17 @@ def validate_environment(environment: str, expected_services: set[str]) -> None:
         for key in ("image_tag", "desired_count", "strategy", "config_profile"):
             if key not in config:
                 raise ValueError(f"{path}: service '{name}' is missing '{key}'")
+        if not isinstance(config["desired_count"], int) or config["desired_count"] < 1:
+            raise ValueError(f"{path}: service '{name}' must have desired_count >= 1")
+        if config["strategy"] not in ALLOWED_STRATEGIES:
+            raise ValueError(
+                f"{path}: service '{name}' has unsupported strategy '{config['strategy']}'"
+            )
+        if config["config_profile"] != environment:
+            raise ValueError(
+                f"{path}: service '{name}' must use config_profile '{environment}', "
+                f"found '{config['config_profile']}'"
+            )
 
 
 def main() -> int:

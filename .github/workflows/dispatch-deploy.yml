@@ -1,10 +1,12 @@
-# Single dispatch entry point: pick a deploy_group + environment + tag,
+# Single dispatch entry point: pick a deploy_group + environment + optional
+# image-tag override,
 # this workflow looks up the catalog, then triggers each owning repo's
 # deploy.yml in rollout_order. Use this when you want to roll a whole
 # bounded context at once instead of running each repo's deploy by hand.
 #
 # Each consumer repo's deploy.yml MUST accept three workflow_dispatch
-# inputs: environment (string), image_tag (string), build_image (boolean).
+# inputs: environment (string), image_tag (string; optional override),
+# build_image (boolean).
 # Triggering uses GitHub's REST API via gh.
 
 name: Dispatch deploy (group)
@@ -32,15 +34,15 @@ on:
           - ingestion
           - simulation
       image_tag:
-        description: Image tag (typically the commit sha, or 'latest' for non-prod)
-        required: true
+        description: Optional image tag override. Leave empty to deploy the tags recorded in environments/<env>/services.yaml.
+        required: false
         type: string
-        default: latest
+        default: ""
       build_image:
-        description: Build & push images first (set false to redeploy an existing tag)
+        description: Build & push images first. Requires image_tag to be set.
         required: true
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read
@@ -81,6 +83,14 @@ jobs:
                   repos.append(s["source_repo"])
           print("repos=" + json.dumps(repos))
           PY
+
+      - name: Validate build inputs
+        run: |
+          set -eu
+          if [ "${{ inputs.build_image }}" = "true" ] && [ -z "${{ inputs.image_tag }}" ]; then
+            echo "image_tag is required when build_image=true" >&2
+            exit 1
+          fi
 
       - name: Trigger each consumer repo's deploy.yml
         env:

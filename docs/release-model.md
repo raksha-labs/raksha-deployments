@@ -13,7 +13,7 @@ This repository is the reviewed record of what is deployed in each environment.
    - desired count changes
    - deployment strategy
    - config profile
-4. Merge triggers the environment rollout.
+4. Merge updates the reviewed deployment manifest consumed by the deploy workflows.
 
 ## Promotion Rules
 

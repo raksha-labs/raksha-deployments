@@ -18,7 +18,7 @@ services:
     image_repo: raksha-portal
     deploy_group: portal
     rollout_order: 20
-    default_strategy: blue_green
+    default_strategy: rolling
 
   - name: admin
     source_repo: raksha-portal
@@ -57,7 +57,7 @@ services:
   - name: notifier-runtime
     source_repo: raksha-notifier-gateway
     source_path: apps/notifier-runtime
-    image_repo: raksha-notifier-runtime
+    image_repo: raksha-notifier-gateway
     deploy_group: delivery
     rollout_order: 70
     default_strategy: rolling

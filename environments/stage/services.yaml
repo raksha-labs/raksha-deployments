@@ -13,7 +13,7 @@ services:
   portal:
     image_tag: stage-approved
     desired_count: 1
-    strategy: blue_green
+    strategy: rolling
     config_profile: stage
 
   admin:
