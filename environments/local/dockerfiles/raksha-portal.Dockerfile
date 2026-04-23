@@ -22,8 +22,9 @@
 
 FROM node:20-bookworm-slim AS deps
 
+ARG NPM_REGISTRY=https://registry.npmjs.org
 WORKDIR /build
-RUN npm install -g pnpm@9.0.0
+RUN npm install -g pnpm@9.0.0 --registry ${NPM_REGISTRY}
 
 # Contracts are consumed by @raksha/backend at build time (ContractsModule
 # resolves OpenAPI YAMLs) and by @raksha/contracts codegen. Copying both
@@ -33,7 +34,7 @@ COPY raksha-contracts ./raksha-contracts
 
 WORKDIR /build/raksha-portal
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile=false
+    pnpm install --frozen-lockfile=false --registry ${NPM_REGISTRY}
 
 # Compile @raksha/contracts once in the shared deps stage. The package now
 # publishes dist/*.js via package.json `exports`, so every downstream app
