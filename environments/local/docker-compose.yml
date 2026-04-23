@@ -410,6 +410,7 @@ services:
       RAKSHA_ADMIN_DEV_AUTOLOGIN: "false"
       RAKSHA_ADMIN_LOCAL_LOGIN_ENABLED: "true"
       RAKSHA_ADMIN_DEV_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
+      ADMIN_DEV_BEARER_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
       RAKSHA_ADMIN_SECURE_COOKIES: "false"
       ADMIN_API_BASE_URL: http://portal-backend:3001
       RAKSHA_API_KEY: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
