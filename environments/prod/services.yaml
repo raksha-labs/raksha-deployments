@@ -3,63 +3,68 @@ environment: prod
 services:
   portal-backend:
     image_tag: prod-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: prod
 
   portal:
     image_tag: prod-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: prod
 
   admin:
     image_tag: prod-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: prod
 
   rule-control-api:
     image_tag: prod-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: prod
 
-  # Runtime services — baseline 2 tasks; ECS target-tracking autoscaling
-  # scales up on CPU + queue-depth metrics. Do NOT set floor below 2 in
-  # prod: lease coordination needs at least one survivor during deploys.
+  # Cost-optimized prod baseline: one task per service. This minimizes
+  # Fargate spend but does not provide HA during deploys or task failures.
   engine:
     image_tag: prod-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: prod
 
   alert-control-api:
     image_tag: prod-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: prod
 
   notifier-runtime:
     image_tag: prod-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: prod
 
   stream-control-api:
     image_tag: prod-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: prod
 
   ingestion-gateway:
     image_tag: prod-approved
-    desired_count: 2
+    desired_count: 1
     strategy: rolling
     config_profile: prod
 
   simlab-api:
     image_tag: prod-approved
-    desired_count: 2
+    desired_count: 1
+    strategy: rolling
+    config_profile: prod
+
+  agent-api:
+    image_tag: prod-approved
+    desired_count: 1
     strategy: rolling
     config_profile: prod

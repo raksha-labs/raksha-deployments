@@ -87,3 +87,12 @@ services:
     deploy_group: simulation
     rollout_order: 100
     default_strategy: rolling
+
+  # ── AI agents context (raksha-ai-agents) ─────────────────────────
+  - name: agent-api
+    source_repo: raksha-ai-agents
+    source_path: apps/agent-api
+    image_repo: raksha-agent-api
+    deploy_group: ai-agents
+    rollout_order: 110
+    default_strategy: rolling

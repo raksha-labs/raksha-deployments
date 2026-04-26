@@ -2,3 +2,93 @@
 site/
 .env.local
 environments/local/docker-compose.override.yml
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.local.example
+*.local
+*.secret
+*.secrets
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# OS/editor
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs, caches, temp
+*.log
+logs/
+tmp/
+temp/
+.cache/
+*.pid
+
+# Build/test artifacts
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/cache/
+.yarn/unplugged/
+.next/
+out/
+dist/
+build/
+coverage/
+.nyc_output/
+.turbo/
+test-results/
+playwright-report/
+.auth-state/
+*.tsbuildinfo
+*.tgz
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+htmlcov/
+
+# Go/Rust
+bin/
+target/
+debug/
+*.test
+coverage.out
+**/*.rs.bk
+*.pdb
+**/mutants.out*/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local runtime data
+var/
+docker-compose.override.yml

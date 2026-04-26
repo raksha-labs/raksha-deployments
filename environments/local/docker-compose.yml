@@ -33,6 +33,12 @@
 #   ingestion-gateway   Rust: connects to data sources, normalizes to
 #                       UnifiedEventV1, publishes to redis.
 #
+#   ── ai agents context (raksha-ai-agents/) ──────────────────────────
+#   agent-api           Go: tenant-scoped AI agent runtime. v0 ships the
+#                       SimLab Scenario Agent (Claude-backed) which calls
+#                       simlab-api + rule-control-api via a curated tool
+#                       catalogue.
+#
 # Build contexts use `../../..` (raksha-labs/) so per-repo Cargo path
 # dependencies (e.g. raksha-engine → raksha-contracts) resolve.
 # =========================================================================
@@ -58,6 +64,7 @@ services:
       - ../../../raksha-ingestion-gateway/sql/schema.sql:/schemas/gateway/schema.sql:ro
       - ../../../raksha-ingestion-gateway/db/control/schema.sql:/schemas/gateway-control/schema.sql:ro
       - ../../../raksha-simlab/db/control/schema.sql:/schemas/simlab/schema.sql:ro
+      - ../../../raksha-ai-agents/db/schema:/schemas/ai:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U raksha -d raksha_portal"]
       interval: 5s
@@ -139,7 +146,7 @@ services:
     environment:
       RUST_LOG: info
       RAKSHA_CONFIG_SOURCE__ENDPOINT: http://rule-control-api:8082
-      RAKSHA_CONFIG_SOURCE__TENANT_IDS: "00000000-0000-0000-0000-000000000001"
+      RAKSHA_CONFIG_SOURCE__TENANT_IDS: "00000000-0000-0000-0000-ffffffffffff"
       RAKSHA_CONFIG_SOURCE__PEER_TOKEN: dev-peer-token-engine
       RAKSHA_CONFIG_SOURCE__VERSION_STORE_PATH: /data/version-store
       RAKSHA_CONFIG_SOURCE__WATCH_TIMEOUT_SECS: "25"
@@ -318,6 +325,68 @@ services:
       start_period: 15s
     restart: unless-stopped
 
+  # ── AI agents context (raksha-ai-agents/) ─────────────────────────
+  # Tenant-scoped AI agent runtime. v0 ships the SimLab Scenario Agent
+  # which orchestrates simlab-api + rule-control-api via a curated tool
+  # catalogue. Owns the `ai.*` schema in raksha_ai.
+
+  ai-db-init:
+    image: postgres:16-alpine
+    environment:
+      PGPASSWORD: raksha
+    volumes:
+      - ../../../raksha-ai-agents/db/schema:/schemas/ai:ro
+    entrypoint: >
+      /bin/sh -c "
+      set -e &&
+      until pg_isready -h postgres -U raksha -d postgres; do sleep 1; done &&
+      psql -h postgres -U raksha -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname = 'raksha_ai'\" | grep -q 1 ||
+      psql -h postgres -U raksha -d postgres -c \"CREATE DATABASE raksha_ai OWNER raksha\" &&
+      psql -h postgres -U raksha -d raksha_ai -f /schemas/ai/0001_init.sql &&
+      psql -h postgres -U raksha -d raksha_ai -f /schemas/ai/seed_dev.sql &&
+      echo 'ai db init complete'
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  agent-api:
+    build:
+      context: ../../../raksha-ai-agents
+      dockerfile: Dockerfile
+    environment:
+      BIND_ADDR: ":8090"
+      DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_ai?sslmode=disable
+      # 32-byte base64 KEK for AES-GCM provider-key sealing (DEV ONLY).
+      AI_KEK_BASE64: ${AI_KEK_BASE64:-cmFrc2hhLWxvY2FsLWRldi1rZWstMzItYnl0ZXMhISE=}
+      EGRESS_ALLOWLIST: ${AI_EGRESS_ALLOWLIST:-api.anthropic.com,simlab-api,rule-control-api,alert-control-api}
+      SIMLAB_BASE_URL: http://simlab-api:8084
+      SIMLAB_PEER_TOKEN: ${PEER_TOKEN_SIMLAB:-dev-peer-token-simlab}
+      RULE_CONTROL_BASE_URL: http://rule-control-api:8082
+      RULE_CONTROL_PEER_TOKEN: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+      SERVICE_TOKEN: ${PEER_TOKEN_AI_AGENTS:-dev-peer-token-ai-agents}
+      ADMIN_PEER_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
+      RAKSHA_LOG_LEVEL: ${RAKSHA_LOG_LEVEL:-info}
+      DEV_SKIP_PERIMETER: "true"
+    ports:
+      - "8090:8090"
+    depends_on:
+      ai-db-init:
+        condition: service_completed_successfully
+      simlab-api:
+        condition: service_healthy
+      rule-control-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8090/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
   # ── Platform context ────────────────────────────────────────────────
 
   portal-backend:
@@ -345,6 +414,10 @@ services:
       # (sibling of ingestion-gateway the Rust runtime). ingestion-proxy
       # in portal-backend uses this URL for datasource + stream CRUD.
       STREAM_CONTROL_BASE_URL: http://stream-control-api:8081
+      # agent-api: tenant-scoped AI agent runtime; ai-proxy in portal-backend
+      # forwards /v1/api/ai/* and /v1/api/admin/ai/* to this URL.
+      AI_AGENTS_BASE_URL: http://agent-api:8090
+      AI_AGENTS_SERVICE_TOKEN: ${PEER_TOKEN_AI_AGENTS:-dev-peer-token-ai-agents}
     ports:
       - "3001:3001"
     depends_on:
@@ -357,6 +430,8 @@ services:
       stream-control-api:
         condition: service_healthy
       simlab-api:
+        condition: service_healthy
+      agent-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3001/healthz >/dev/null || exit 1"]

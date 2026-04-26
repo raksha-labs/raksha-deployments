@@ -58,6 +58,7 @@ cmd_up() {
   platform API              http://localhost:3001   (service: portal-backend; shared by portal + admin)
   platform API Swagger      http://localhost:3001/v1/openapi
   simlab-api                http://localhost:8084   (simulation CRUD; peer-only)
+  agent-api                 http://localhost:8090   (AI agents runtime; peer-only)
   rule-control-api          http://localhost:8085   (detection CRUD; peer-token)
   alert-control-api         http://localhost:8086   (delivery CRUD; peer-token)
   ingestion-gateway health  http://localhost:8080/health
@@ -157,7 +158,7 @@ cmd_errors() {
 cmd_status() {
   echo "==> service status"
   # Prints the health of each non-oneshot service.
-  for svc in postgres redis minio rule-control-api alert-control-api stream-control-api simlab-api engine notifier-runtime ingestion-gateway portal-backend portal admin; do
+  for svc in postgres redis minio rule-control-api alert-control-api stream-control-api simlab-api agent-api engine notifier-runtime ingestion-gateway portal-backend portal admin; do
     local health
     health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "raksha-local-${svc}-1" 2>/dev/null || echo "missing")
     printf "  %-22s %s\n" "$svc" "$health"
@@ -165,7 +166,7 @@ cmd_status() {
 }
 
 status_ok() {
-  for svc in postgres redis minio rule-control-api alert-control-api stream-control-api simlab-api engine notifier-runtime ingestion-gateway portal-backend portal admin; do
+  for svc in postgres redis minio rule-control-api alert-control-api stream-control-api simlab-api agent-api engine notifier-runtime ingestion-gateway portal-backend portal admin; do
     local health
     health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "raksha-local-${svc}-1" 2>/dev/null || echo "missing")
     case "$health" in

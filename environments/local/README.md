@@ -61,6 +61,8 @@ Every cross-repo HTTP call uses a single env-var bearer token:
 | portal-backend → rule-control-api | `PEER_TOKEN_ENGINE` | `RULE_CONTROL_INTERNAL_PEER_TOKEN` |
 | portal-backend → alert-control-api | `PEER_TOKEN_NOTIFIER_GATEWAY` | `ALERT_CONTROL_INTERNAL_PEER_TOKEN` |
 | portal-backend → simlab-api | `PEER_TOKEN_SIMLAB` | `SIMLAB_INTERNAL_PEER_TOKEN` |
+| agent-api → rule-control-api | `RULE_CONTROL_PEER_TOKEN` | `RULE_CONTROL_INTERNAL_PEER_TOKEN` |
+| agent-api → simlab-api | `SIMLAB_PEER_TOKEN` | `SIMLAB_INTERNAL_PEER_TOKEN` |
 | engine → rule-control-api | `RAKSHA_CONFIG_SOURCE__PEER_TOKEN` | `RULE_CONTROL_INTERNAL_PEER_TOKEN` |
 | notifier-runtime → alert-control-api | `ALERT_CONTROL_PEER_TOKEN` | `ALERT_CONTROL_INTERNAL_PEER_TOKEN` |
 | simlab-api → stream-control-api | `SIMLAB_INGESTION_SIM_PEER_TOKEN` | `STREAM_CONTROL_INTERNAL_PEER_TOKEN` |

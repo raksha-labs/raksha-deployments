@@ -1,0 +1,135 @@
+# Reusable: empty ECR repositories, then terraform destroy one service project.
+#
+# This is intentionally manual-only through caller workflows. It uses the same
+# backend key convention as reusable-ecs-deploy:
+# "${project-name}/${environment}/terraform.tfstate".
+
+name: reusable-ecs-destroy
+
+on:
+  workflow_call:
+    inputs:
+      project-name:
+        description: "Project key used in the tfstate key."
+        type: string
+        required: true
+      environment:
+        description: "Target environment to destroy."
+        type: string
+        required: true
+      tf-vars:
+        description: "Multi-line list of name=value, one per line, passed as -var."
+        type: string
+        default: ""
+      ecr-repositories:
+        description: "Space-separated ECR repository names to empty before destroy."
+        type: string
+        default: ""
+      cleanup-ecr:
+        description: "Delete ECR images before terraform destroy so repositories can be removed."
+        type: boolean
+        default: true
+      working-directory:
+        type: string
+        default: infra/terraform
+      terraform-version:
+        type: string
+        default: "1.6.6"
+      aws-region:
+        type: string
+        default: "eu-west-1"
+      runs-on:
+        type: string
+        default: ubuntu-latest
+    secrets:
+      AWS_INFRA_ROLE_ARN:
+        required: true
+      TF_BACKEND_BUCKET:
+        required: true
+      TF_BACKEND_DYNAMODB_TABLE:
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy:
+    name: Destroy ${{ inputs.project-name }} -> ${{ inputs.environment }}
+    runs-on: ${{ inputs.runs-on }}
+    environment: ${{ inputs.environment }}
+    concurrency: cleanup-${{ inputs.project-name }}-${{ inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Empty ECR repositories
+        if: ${{ inputs.cleanup-ecr }}
+        run: |
+          set -eu
+          for repo in ${{ inputs.ecr-repositories }}; do
+            echo "Emptying ECR repository: $repo"
+            if ! aws ecr describe-repositories --repository-names "$repo" >/dev/null 2>&1; then
+              echo "Repository $repo does not exist; skipping."
+              continue
+            fi
+
+            while true; do
+              aws ecr list-images \
+                --repository-name "$repo" \
+                --max-items 100 \
+                --query 'imageIds' \
+                --output json > image-ids.json
+
+              count=$(jq length image-ids.json)
+              if [ "$count" -eq 0 ]; then
+                break
+              fi
+
+              aws ecr batch-delete-image \
+                --repository-name "$repo" \
+                --image-ids file://image-ids.json >/dev/null
+            done
+          done
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+
+      - name: Terraform init
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          terraform init \
+            -input=false \
+            -reconfigure \
+            -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}" \
+            -backend-config="key=${{ inputs.project-name }}/${{ inputs.environment }}/terraform.tfstate" \
+            -backend-config="region=${{ inputs.aws-region }}" \
+            -backend-config="dynamodb_table=${{ secrets.TF_BACKEND_DYNAMODB_TABLE }}" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform destroy
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          TF_VAR_environment: ${{ inputs.environment }}
+          TF_VAR_aws_region: ${{ inputs.aws-region }}
+        run: |
+          set -eu
+          extra_args=()
+          while IFS= read -r line; do
+            line="${line#"${line%%[![:space:]]*}"}"
+            line="${line%"${line##*[![:space:]]}"}"
+            [ -z "$line" ] && continue
+            extra_args+=(-var="$line")
+          done <<< "${{ inputs.tf-vars }}"
+
+          terraform plan -destroy -input=false -out=cleanup.tfplan "${extra_args[@]}"
+          terraform apply -auto-approve -input=false cleanup.tfplan

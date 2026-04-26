@@ -60,3 +60,9 @@ services:
     desired_count: 1
     strategy: rolling
     config_profile: dev
+
+  agent-api:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev

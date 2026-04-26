@@ -74,4 +74,8 @@ load_schema_file "raksha_gateway_raw" "/schemas/gateway/schema.sql"
 create_db "raksha_simlab"
 load_schema_file "raksha_simlab" "/schemas/simlab/schema.sql"
 
+create_db "raksha_ai"
+load_schema_file "raksha_ai" "/schemas/ai/0001_init.sql"
+load_schema_file "raksha_ai" "/schemas/ai/seed_dev.sql"
+
 echo "[bootstrap] all databases initialized"

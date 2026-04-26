@@ -1,0 +1,214 @@
+# Manual environment cleanup dispatcher.
+#
+# Destroys application service stacks in reverse rollout order so dependent
+# service stacks can still read portal/backend security-group data while they
+# plan their own destroy. Foundation cleanup is optional and runs last.
+
+name: Dispatch cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment to destroy
+        required: true
+        type: choice
+        options:
+          - dev
+          - stage
+          - prod
+      cleanup_group:
+        description: "Bounded context to clean. 'all' = every group in reverse rollout order."
+        required: true
+        type: choice
+        options:
+          - all
+          - ai-agents
+          - simulation
+          - ingestion
+          - delivery
+          - detection
+          - portal
+      cleanup_ecr:
+        description: Delete ECR images before destroying service Terraform
+        required: true
+        type: boolean
+        default: true
+      include_foundation:
+        description: Also destroy shared foundation infra after service cleanup
+        required: true
+        type: boolean
+        default: false
+      confirmation:
+        description: "Type destroy-<environment>, for example destroy-prod"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    name: Dispatch cleanup
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate confirmation
+        run: |
+          set -eu
+          expected="destroy-${{ inputs.environment }}"
+          if [ "${{ inputs.confirmation }}" != "$expected" ]; then
+            echo "Confirmation must be exactly '$expected'." >&2
+            exit 1
+          fi
+          if [ "${{ inputs.include_foundation }}" = "true" ] && [ "${{ inputs.cleanup_group }}" != "all" ]; then
+            echo "include_foundation=true is only allowed with cleanup_group=all." >&2
+            exit 1
+          fi
+
+      - name: Checkout deployments
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Compute repo list
+        id: repos
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import yaml
+
+          catalog = yaml.safe_load(open("catalog/services.yaml"))
+          group = "${{ inputs.cleanup_group }}"
+          services = catalog["services"]
+          if group != "all":
+              services = [s for s in services if s["deploy_group"] == group]
+          services.sort(key=lambda s: s["rollout_order"], reverse=True)
+
+          seen, repos = set(), []
+          for service in services:
+              repo = service["source_repo"]
+              if repo not in seen:
+                  seen.add(repo)
+                  repos.append(repo)
+          print("repos=" + json.dumps(repos))
+          PY
+
+      - name: Trigger consumer cleanup workflows
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
+        run: |
+          set -eu
+          wait_for_cleanup() {
+            repo="$1"
+            dispatch_id="$2"
+            run_title="Cleanup $repo ${{ inputs.environment }} $dispatch_id"
+            echo "Waiting for $run_title"
+
+            run_id=""
+            for _ in $(seq 1 30); do
+              run_id=$(
+                gh run list \
+                  --repo "raksha-labs/$repo" \
+                  --workflow cleanup.yml \
+                  --json databaseId,displayTitle \
+                  --limit 20 \
+                | RUN_TITLE="$run_title" python3 -c '
+          import json
+          import os
+          import sys
+
+          title = os.environ["RUN_TITLE"]
+          for run in json.load(sys.stdin):
+              if run.get("displayTitle") == title:
+                  print(run["databaseId"])
+                  break
+          '
+              )
+              if [ -n "$run_id" ]; then
+                break
+              fi
+              sleep 10
+            done
+
+            if [ -z "$run_id" ]; then
+              echo "Timed out waiting for cleanup run to appear: $run_title" >&2
+              exit 1
+            fi
+
+            gh run watch "$run_id" \
+              --repo "raksha-labs/$repo" \
+              --exit-status \
+              --interval 30
+          }
+
+          repos='${{ steps.repos.outputs.repos }}'
+          echo "Dispatching cleanup to: $repos"
+          for repo in $(echo "$repos" | python3 -c 'import json,sys; print(" ".join(json.load(sys.stdin)))'); do
+            dispatch_id="${{ github.run_id }}-$repo"
+            echo "-> raksha-labs/$repo"
+            gh workflow run cleanup.yml \
+              --repo "raksha-labs/$repo" \
+              -f environment='${{ inputs.environment }}' \
+              -f cleanup_ecr='${{ inputs.cleanup_ecr }}' \
+              -f confirmation='${{ inputs.confirmation }}' \
+              -f dispatch_id="$dispatch_id"
+            wait_for_cleanup "$repo" "$dispatch_id"
+          done
+
+      - name: Trigger foundation cleanup
+        if: ${{ inputs.include_foundation }}
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
+        run: |
+          set -eu
+          repo="raksha-foundation-infra"
+          dispatch_id="${{ github.run_id }}-$repo"
+          gh workflow run cleanup.yml \
+            --repo "raksha-labs/$repo" \
+            -f environment='${{ inputs.environment }}' \
+            -f confirmation='${{ inputs.confirmation }}' \
+            -f dispatch_id="$dispatch_id"
+
+          run_title="Cleanup $repo ${{ inputs.environment }} $dispatch_id"
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id=$(
+              gh run list \
+                --repo "raksha-labs/$repo" \
+                --workflow cleanup.yml \
+                --json databaseId,displayTitle \
+                --limit 20 \
+              | RUN_TITLE="$run_title" python3 -c '
+          import json
+          import os
+          import sys
+
+          title = os.environ["RUN_TITLE"]
+          for run in json.load(sys.stdin):
+              if run.get("displayTitle") == title:
+                  print(run["databaseId"])
+                  break
+          '
+            )
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 10
+          done
+
+          if [ -z "$run_id" ]; then
+            echo "Timed out waiting for cleanup run to appear: $run_title" >&2
+            exit 1
+          fi
+
+          gh run watch "$run_id" \
+            --repo "raksha-labs/$repo" \
+            --exit-status \
+            --interval 30
