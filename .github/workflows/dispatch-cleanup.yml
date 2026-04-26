@@ -142,10 +142,30 @@ jobs:
               exit 1
             fi
 
-            gh run watch "$run_id" \
-              --repo "raksha-labs/$repo" \
-              --exit-status \
-              --interval 30
+            while true; do
+              run_info=$(gh api "repos/raksha-labs/$repo/actions/runs/$run_id")
+              parsed=$(printf '%s' "$run_info" | python3 -c '
+          import json
+          import sys
+
+          run = json.load(sys.stdin)
+          print(run["status"], run.get("conclusion") or "none", run["html_url"])
+          ')
+              set -- $parsed
+              status="$1"
+              conclusion="$2"
+              url="$3"
+              echo "$repo cleanup run $run_id: $status/$conclusion"
+
+              if [ "$status" = "completed" ]; then
+                if [ "$conclusion" != "success" ]; then
+                  echo "Cleanup failed: $url" >&2
+                  exit 1
+                fi
+                break
+              fi
+              sleep 30
+            done
           }
 
           repos='${{ steps.repos.outputs.repos }}'
@@ -155,6 +175,7 @@ jobs:
             echo "-> raksha-labs/$repo"
             gh workflow run cleanup.yml \
               --repo "raksha-labs/$repo" \
+              --ref main \
               -f environment='${{ inputs.environment }}' \
               -f cleanup_ecr='${{ inputs.cleanup_ecr }}' \
               -f confirmation='${{ inputs.confirmation }}' \
@@ -172,6 +193,7 @@ jobs:
           dispatch_id="${{ github.run_id }}-$repo"
           gh workflow run cleanup.yml \
             --repo "raksha-labs/$repo" \
+            --ref main \
             -f environment='${{ inputs.environment }}' \
             -f confirmation='${{ inputs.confirmation }}' \
             -f dispatch_id="$dispatch_id"
@@ -208,7 +230,27 @@ jobs:
             exit 1
           fi
 
-          gh run watch "$run_id" \
-            --repo "raksha-labs/$repo" \
-            --exit-status \
-            --interval 30
+          while true; do
+            run_info=$(gh api "repos/raksha-labs/$repo/actions/runs/$run_id")
+            parsed=$(printf '%s' "$run_info" | python3 -c '
+          import json
+          import sys
+
+          run = json.load(sys.stdin)
+          print(run["status"], run.get("conclusion") or "none", run["html_url"])
+          ')
+            set -- $parsed
+            status="$1"
+            conclusion="$2"
+            url="$3"
+            echo "$repo cleanup run $run_id: $status/$conclusion"
+
+            if [ "$status" = "completed" ]; then
+              if [ "$conclusion" != "success" ]; then
+                echo "Cleanup failed: $url" >&2
+                exit 1
+              fi
+              break
+            fi
+            sleep 30
+          done
