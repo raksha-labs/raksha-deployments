@@ -13,7 +13,7 @@
 # Usage (PR build, no push):
 #   jobs:
 #     image:
-#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-docker-build.yml@main
+#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-docker-build.yml@master
 #       with:
 #         image-name: raksha-portal-backend
 #         dockerfile: raksha-deployments/environments/local/dockerfiles/portal-backend.Dockerfile

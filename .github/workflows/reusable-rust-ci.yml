@@ -4,7 +4,7 @@
 #
 #   jobs:
 #     rust:
-#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-rust-ci.yml@main
+#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-rust-ci.yml@master
 #       with:
 #         workspace-path: "."           # default: repo root
 #         toolchain: stable             # default: stable

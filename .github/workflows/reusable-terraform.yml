@@ -3,7 +3,7 @@
 # Usage:
 #   jobs:
 #     terraform:
-#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-terraform.yml@main
+#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-terraform.yml@master
 #       with:
 #         working-directory: infra/terraform
 

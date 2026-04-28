@@ -7,7 +7,7 @@
 # Usage:
 #   jobs:
 #     deploy:
-#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-ecs-deploy.yml@main
+#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-ecs-deploy.yml@master
 #       with:
 #         project-name: raksha-portal
 #         environment: stage

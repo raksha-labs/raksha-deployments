@@ -3,7 +3,7 @@
 # Usage:
 #   jobs:
 #     go:
-#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-go-ci.yml@main
+#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-go-ci.yml@master
 #       with:
 #         module-path: apps/rule-control-api
 #         go-version: "1.22"

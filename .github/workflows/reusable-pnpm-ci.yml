@@ -4,7 +4,7 @@
 # Usage (raksha-portal):
 #   jobs:
 #     node:
-#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-pnpm-ci.yml@main
+#       uses: raksha-labs/raksha-deployments/.github/workflows/reusable-pnpm-ci.yml@master
 #       with:
 #         node-version: "20.10.0"
 #         pnpm-version: "9"
