@@ -1,0 +1,49 @@
+# Single dispatch entry point to fan CI out across every consumer repo.
+# Mirrors the shape of dispatch-deploy.yml: gh workflow run ci.yml on
+# each repo via the CROSS_REPO_DISPATCH_TOKEN. Each consumer repo's
+# ci.yml runs in its own repo and reports status independently — this
+# job is fire-and-forget, it goes green even if a downstream CI run
+# fails. Watch downstream runs via the Actions tab on each repo or
+# `gh run list --repo raksha-labs/<repo>`.
+
+name: Dispatch CI (group)
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "Repo to run CI on, or 'all'."
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - raksha-portal
+          - raksha-engine
+          - raksha-notifier-gateway
+          - raksha-ingestion-gateway
+          - raksha-simlab
+          - raksha-ai-agents
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    name: Dispatch to consumer repos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger each consumer repo's ci.yml
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
+        run: |
+          set -eu
+          if [ "${{ inputs.scope }}" = "all" ]; then
+            repos="raksha-portal raksha-engine raksha-notifier-gateway raksha-ingestion-gateway raksha-simlab raksha-ai-agents"
+          else
+            repos="${{ inputs.scope }}"
+          fi
+          for repo in $repos; do
+            echo "→ raksha-labs/$repo"
+            gh workflow run ci.yml --repo "raksha-labs/$repo" --ref master
+          done
