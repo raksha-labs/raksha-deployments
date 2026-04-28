@@ -103,7 +103,7 @@ jobs:
             echo "→ raksha-labs/$repo"
             gh workflow run deploy.yml \
               --repo "raksha-labs/$repo" \
-              --ref main \
+              --ref master \
               -f environment='${{ inputs.environment }}' \
               -f image_tag='${{ inputs.image_tag }}' \
               -f build_image='${{ inputs.build_image }}'

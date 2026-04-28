@@ -175,7 +175,7 @@ jobs:
             echo "-> raksha-labs/$repo"
             gh workflow run cleanup.yml \
               --repo "raksha-labs/$repo" \
-              --ref main \
+              --ref master \
               -f environment='${{ inputs.environment }}' \
               -f cleanup_ecr='${{ inputs.cleanup_ecr }}' \
               -f confirmation='${{ inputs.confirmation }}' \
@@ -193,7 +193,7 @@ jobs:
           dispatch_id="${{ github.run_id }}-$repo"
           gh workflow run cleanup.yml \
             --repo "raksha-labs/$repo" \
-            --ref main \
+            --ref master \
             -f environment='${{ inputs.environment }}' \
             -f confirmation='${{ inputs.confirmation }}' \
             -f dispatch_id="$dispatch_id"
