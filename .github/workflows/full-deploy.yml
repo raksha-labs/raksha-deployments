@@ -1,0 +1,110 @@
+# Single-run orchestrator that deploys every consumer repo by calling
+# each repo's deploy.yml as a cross-repo reusable workflow. Jobs are
+# chained via `needs:` in catalog rollout_order: portal → detection
+# → delivery → ingestion → simulation → ai-agents.
+#
+# Compared to dispatch-deploy.yml (fan-out via gh workflow run), this
+# yields ONE GitHub Actions run with six sub-jobs you can watch in a
+# single timeline. Each consumer repo's deploy.yml must accept the
+# `workflow_call` trigger (inputs: environment / image_tag /
+# build_image), and each must have cross-repo workflow access enabled
+# on its Settings → Actions → General → Access page.
+#
+# Secrets and vars resolve from THIS repo's context (raksha-deployments)
+# when called cross-repo — so any `vars.RAKSHA_*` referenced inside a
+# consumer's deploy.yml must be mirrored on raksha-deployments or at
+# the org level. `secrets: inherit` passes the caller's secrets through.
+
+name: Full deploy (all repos)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - dev
+          - stage
+          - prod
+      image_tag:
+        description: Optional image tag override. Leave empty to deploy the tags recorded in environments/<env>/services.yaml.
+        required: false
+        type: string
+        default: ""
+      build_image:
+        description: Build & push images first. Requires image_tag to be set.
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate-inputs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate build inputs
+        run: |
+          set -eu
+          if [ "${{ inputs.build_image }}" = "true" ] && [ -z "${{ inputs.image_tag }}" ]; then
+            echo "image_tag is required when build_image=true" >&2
+            exit 1
+          fi
+
+  deploy-portal:
+    needs: validate-inputs
+    uses: raksha-labs/raksha-portal/.github/workflows/deploy.yml@master
+    with:
+      environment: ${{ inputs.environment }}
+      image_tag: ${{ inputs.image_tag }}
+      build_image: ${{ inputs.build_image }}
+    secrets: inherit
+
+  deploy-detection:
+    needs: deploy-portal
+    uses: raksha-labs/raksha-engine/.github/workflows/deploy.yml@master
+    with:
+      environment: ${{ inputs.environment }}
+      image_tag: ${{ inputs.image_tag }}
+      build_image: ${{ inputs.build_image }}
+    secrets: inherit
+
+  deploy-delivery:
+    needs: deploy-detection
+    uses: raksha-labs/raksha-notifier-gateway/.github/workflows/deploy.yml@master
+    with:
+      environment: ${{ inputs.environment }}
+      image_tag: ${{ inputs.image_tag }}
+      build_image: ${{ inputs.build_image }}
+    secrets: inherit
+
+  deploy-ingestion:
+    needs: deploy-delivery
+    uses: raksha-labs/raksha-ingestion-gateway/.github/workflows/deploy.yml@master
+    with:
+      environment: ${{ inputs.environment }}
+      image_tag: ${{ inputs.image_tag }}
+      build_image: ${{ inputs.build_image }}
+    secrets: inherit
+
+  deploy-simulation:
+    needs: deploy-ingestion
+    uses: raksha-labs/raksha-simlab/.github/workflows/deploy.yml@master
+    with:
+      environment: ${{ inputs.environment }}
+      image_tag: ${{ inputs.image_tag }}
+      build_image: ${{ inputs.build_image }}
+    secrets: inherit
+
+  deploy-ai-agents:
+    needs: deploy-simulation
+    uses: raksha-labs/raksha-ai-agents/.github/workflows/deploy.yml@master
+    with:
+      environment: ${{ inputs.environment }}
+      image_tag: ${{ inputs.image_tag }}
+      build_image: ${{ inputs.build_image }}
+    secrets: inherit
