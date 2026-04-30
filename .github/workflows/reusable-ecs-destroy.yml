@@ -48,6 +48,8 @@ on:
         required: true
       TF_BACKEND_DYNAMODB_TABLE:
         required: true
+      CROSS_REPO_READ_TOKEN:
+        required: true
 
 permissions:
   id-token: write
@@ -61,8 +63,11 @@ jobs:
     concurrency: cleanup-${{ inputs.project-name }}-${{ inputs.environment }}
 
     steps:
-      - name: Checkout
+      - name: Checkout project repo
         uses: actions/checkout@v4
+        with:
+          repository: raksha-labs/${{ inputs.project-name }}
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
