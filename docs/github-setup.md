@@ -66,7 +66,8 @@ AWS contract in SSM (`/raksha/<env>/core/...`).
 What it does not do:
 
 - it does not store or push secret values from the checked-in example file
-- secrets such as `AWS_INFRA_ROLE_ARN`, `TF_BACKEND_BUCKET`, `TF_BACKEND_DYNAMODB_TABLE`, `CROSS_REPO_READ_TOKEN`, and `CROSS_REPO_DISPATCH_TOKEN` should still be set in GitHub Secrets
+- secrets such as `AWS_INFRA_ROLE_ARN`, `CROSS_REPO_READ_TOKEN`, and `CROSS_REPO_DISPATCH_TOKEN` should still be set in GitHub Secrets
+- `TF_BACKEND_BUCKET` and `TF_BACKEND_DYNAMODB_TABLE` are tfstate **resource names**, not credentials — set them as repo/org **variables** (Settings → Secrets and variables → Actions → Variables), not secrets, so they show unmasked in CI logs and stay easy to debug
 
 The intended flow is:
 

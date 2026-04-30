@@ -44,10 +44,6 @@ on:
     secrets:
       AWS_INFRA_ROLE_ARN:
         required: true
-      TF_BACKEND_BUCKET:
-        required: true
-      TF_BACKEND_DYNAMODB_TABLE:
-        required: true
       CROSS_REPO_READ_TOKEN:
         required: false
 
@@ -109,16 +105,33 @@ jobs:
         with:
           terraform_version: ${{ inputs.terraform-version }}
 
+      - name: Verify backend config
+        env:
+          STATE_BUCKET: ${{ vars.TF_BACKEND_BUCKET }}
+          LOCK_TABLE: ${{ vars.TF_BACKEND_DYNAMODB_TABLE }}
+        run: |
+          set -eu
+          missing=0
+          if [ -z "${STATE_BUCKET:-}" ]; then
+            echo "::error::vars.TF_BACKEND_BUCKET is empty. Set it under Settings → Secrets and variables → Actions → Variables." >&2
+            missing=1
+          fi
+          if [ -z "${LOCK_TABLE:-}" ]; then
+            echo "::error::vars.TF_BACKEND_DYNAMODB_TABLE is empty. Set it under Settings → Secrets and variables → Actions → Variables." >&2
+            missing=1
+          fi
+          [ "$missing" -eq 0 ]
+
       - name: Terraform init
         working-directory: ${{ inputs.working-directory }}
         run: |
           terraform init \
             -input=false \
             -reconfigure \
-            -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}" \
+            -backend-config="bucket=${{ vars.TF_BACKEND_BUCKET }}" \
             -backend-config="key=${{ inputs.project-name }}/${{ inputs.environment }}/terraform.tfstate" \
             -backend-config="region=${{ inputs.aws-region }}" \
-            -backend-config="dynamodb_table=${{ secrets.TF_BACKEND_DYNAMODB_TABLE }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_BACKEND_DYNAMODB_TABLE }}" \
             -backend-config="encrypt=true"
 
       - name: Terraform destroy

@@ -24,8 +24,6 @@
       },
       "required_secrets": [
         "AWS_INFRA_ROLE_ARN",
-        "TF_BACKEND_BUCKET",
-        "TF_BACKEND_DYNAMODB_TABLE",
         "CROSS_REPO_READ_TOKEN"
       ]
     },
@@ -38,8 +36,6 @@
       },
       "required_secrets": [
         "AWS_INFRA_ROLE_ARN",
-        "TF_BACKEND_BUCKET",
-        "TF_BACKEND_DYNAMODB_TABLE",
         "CROSS_REPO_READ_TOKEN"
       ]
     },
@@ -52,8 +48,6 @@
       },
       "required_secrets": [
         "AWS_INFRA_ROLE_ARN",
-        "TF_BACKEND_BUCKET",
-        "TF_BACKEND_DYNAMODB_TABLE",
         "CROSS_REPO_READ_TOKEN"
       ]
     },
@@ -66,8 +60,6 @@
       },
       "required_secrets": [
         "AWS_INFRA_ROLE_ARN",
-        "TF_BACKEND_BUCKET",
-        "TF_BACKEND_DYNAMODB_TABLE",
         "CROSS_REPO_READ_TOKEN"
       ]
     },
@@ -77,9 +69,7 @@
         "RAKSHA_SIMLAB_SECRET_ENV": "{}"
       },
       "required_secrets": [
-        "AWS_INFRA_ROLE_ARN",
-        "TF_BACKEND_BUCKET",
-        "TF_BACKEND_DYNAMODB_TABLE"
+        "AWS_INFRA_ROLE_ARN"
       ]
     }
   }

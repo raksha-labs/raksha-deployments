@@ -89,10 +89,13 @@ jobs:
         image_tag=${{ inputs.image_tag }}
         vpc_id=${{ vars.RAKSHA_FOO_VPC_ID }}
     secrets:
-      AWS_INFRA_ROLE_ARN:        ${{ secrets.AWS_INFRA_ROLE_ARN }}
-      TF_BACKEND_BUCKET:         ${{ secrets.TF_BACKEND_BUCKET }}
-      TF_BACKEND_DYNAMODB_TABLE: ${{ secrets.TF_BACKEND_DYNAMODB_TABLE }}
+      AWS_INFRA_ROLE_ARN: ${{ secrets.AWS_INFRA_ROLE_ARN }}
 ```
+
+`TF_BACKEND_BUCKET` and `TF_BACKEND_DYNAMODB_TABLE` are read from
+repo/org **variables** (`vars.*`) and are inherited automatically by the
+reusable workflow — they are resource names, not credentials, so they
+do not belong in `secrets:`.
 
 ## Central rollout
 
@@ -132,8 +135,8 @@ Wire these once at the org or repo level (Settings → Secrets and variables):
 | secret   | `CROSS_REPO_READ_TOKEN`           | clone raksha-contracts / raksha-deployments |
 | secret   | `CROSS_REPO_DISPATCH_TOKEN`       | bulk-trigger consumer deploys     |
 | secret   | `AWS_INFRA_ROLE_ARN`              | OIDC role for ECR + ECS + TF      |
-| secret   | `TF_BACKEND_BUCKET`               | tfstate S3 bucket                 |
-| secret   | `TF_BACKEND_DYNAMODB_TABLE`       | tfstate lock table                |
+| variable | `TF_BACKEND_BUCKET`               | tfstate S3 bucket                 |
+| variable | `TF_BACKEND_DYNAMODB_TABLE`       | tfstate lock table                |
 | variable | `AWS_REGION`                      | default eu-west-1                 |
 | variable | `RAKSHA_<PROJECT>_*`              | project-specific tf vars          |
 

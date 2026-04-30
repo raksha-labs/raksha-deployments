@@ -4,6 +4,12 @@
 # raksha-engine, raksha-notifier-gateway, raksha-ingestion-gateway). The
 # state key is "${project-name}/${environment}/terraform.tfstate".
 #
+# Backend identifiers (state bucket, lock table) are read from repo vars
+# (vars.TF_BACKEND_BUCKET, vars.TF_BACKEND_DYNAMODB_TABLE) — they are
+# resource names, not credentials, so they are configured as GitHub
+# Actions repo/org variables and inherited automatically by this reusable
+# workflow without needing to be forwarded in the caller's secrets: block.
+#
 # Usage:
 #   jobs:
 #     deploy:
@@ -19,8 +25,6 @@
 #           vpc_id=${{ vars.RAKSHA_PORTAL_VPC_ID }}
 #       secrets:
 #         AWS_INFRA_ROLE_ARN: ${{ secrets.AWS_INFRA_ROLE_ARN }}
-#         TF_BACKEND_BUCKET: ${{ secrets.TF_BACKEND_BUCKET }}
-#         TF_BACKEND_DYNAMODB_TABLE: ${{ secrets.TF_BACKEND_DYNAMODB_TABLE }}
 
 name: reusable-ecs-deploy
 
@@ -58,10 +62,6 @@ on:
     secrets:
       AWS_INFRA_ROLE_ARN:
         required: true
-      TF_BACKEND_BUCKET:
-        required: true
-      TF_BACKEND_DYNAMODB_TABLE:
-        required: true
       CROSS_REPO_READ_TOKEN:
         required: false
 
@@ -92,16 +92,33 @@ jobs:
         with:
           terraform_version: ${{ inputs.terraform-version }}
 
+      - name: Verify backend config
+        env:
+          STATE_BUCKET: ${{ vars.TF_BACKEND_BUCKET }}
+          LOCK_TABLE: ${{ vars.TF_BACKEND_DYNAMODB_TABLE }}
+        run: |
+          set -eu
+          missing=0
+          if [ -z "${STATE_BUCKET:-}" ]; then
+            echo "::error::vars.TF_BACKEND_BUCKET is empty. Set it under Settings → Secrets and variables → Actions → Variables." >&2
+            missing=1
+          fi
+          if [ -z "${LOCK_TABLE:-}" ]; then
+            echo "::error::vars.TF_BACKEND_DYNAMODB_TABLE is empty. Set it under Settings → Secrets and variables → Actions → Variables." >&2
+            missing=1
+          fi
+          [ "$missing" -eq 0 ]
+
       - name: Terraform init
         working-directory: ${{ inputs.working-directory }}
         run: |
           terraform init \
             -input=false \
             -reconfigure \
-            -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}" \
+            -backend-config="bucket=${{ vars.TF_BACKEND_BUCKET }}" \
             -backend-config="key=${{ inputs.project-name }}/${{ inputs.environment }}/terraform.tfstate" \
             -backend-config="region=${{ inputs.aws-region }}" \
-            -backend-config="dynamodb_table=${{ secrets.TF_BACKEND_DYNAMODB_TABLE }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_BACKEND_DYNAMODB_TABLE }}" \
             -backend-config="encrypt=true"
 
       - name: Terraform apply
