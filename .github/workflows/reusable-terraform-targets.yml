@@ -1,0 +1,135 @@
+name: reusable-terraform-targets
+
+on:
+  workflow_call:
+    inputs:
+      project-name:
+        description: "Project repository name."
+        type: string
+        required: true
+      environment:
+        description: "Target environment."
+        type: string
+        required: true
+      target_resources:
+        description: "Newline-separated Terraform resource addresses to apply before the main deploy."
+        type: string
+        required: true
+      tf-vars:
+        description: "Multi-line list of name=value, one per line, passed as TF_VAR_* to terraform."
+        type: string
+        default: ""
+      working-directory:
+        type: string
+        default: infra/terraform
+      terraform-version:
+        type: string
+        default: "1.6.6"
+      aws-region:
+        type: string
+        default: "eu-west-1"
+      runs-on:
+        type: string
+        default: ubuntu-latest
+    secrets:
+      AWS_INFRA_ROLE_ARN:
+        required: true
+      CROSS_REPO_READ_TOKEN:
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply-targets:
+    name: Terraform targets ${{ inputs.project-name }} -> ${{ inputs.environment }}
+    runs-on: ${{ inputs.runs-on }}
+
+    steps:
+      - name: Checkout project repo
+        uses: actions/checkout@v4
+        with:
+          repository: raksha-labs/${{ inputs.project-name }}
+          token: ${{ secrets.CROSS_REPO_READ_TOKEN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform-version }}
+
+      - name: Verify backend config
+        env:
+          STATE_BUCKET: ${{ vars.TF_BACKEND_BUCKET }}
+          LOCK_TABLE: ${{ vars.TF_BACKEND_DYNAMODB_TABLE }}
+        run: |
+          set -eu
+          missing=0
+          if [ -z "${STATE_BUCKET:-}" ]; then
+            echo "::error::vars.TF_BACKEND_BUCKET is empty. Set it under Settings -> Secrets and variables -> Actions -> Variables." >&2
+            missing=1
+          fi
+          if [ -z "${LOCK_TABLE:-}" ]; then
+            echo "::error::vars.TF_BACKEND_DYNAMODB_TABLE is empty. Set it under Settings -> Secrets and variables -> Actions -> Variables." >&2
+            missing=1
+          fi
+          [ "$missing" -eq 0 ]
+
+      - name: Terraform init
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          terraform init \
+            -input=false \
+            -reconfigure \
+            -backend-config="bucket=${{ vars.TF_BACKEND_BUCKET }}" \
+            -backend-config="key=${{ inputs.project-name }}/${{ inputs.environment }}/terraform.tfstate" \
+            -backend-config="region=${{ inputs.aws-region }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_BACKEND_DYNAMODB_TABLE }}" \
+            -backend-config="encrypt=true"
+
+      - name: Terraform apply targets
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          TF_VAR_environment: ${{ inputs.environment }}
+          TF_VAR_aws_region: ${{ inputs.aws-region }}
+          TF_VARS_INPUT: ${{ inputs.tf-vars }}
+          TARGET_RESOURCES: ${{ inputs.target_resources }}
+        run: |
+          set -eu
+          while IFS= read -r line; do
+            line="${line#"${line%%[![:space:]]*}"}"
+            line="${line%"${line##*[![:space:]]}"}"
+            [ -z "$line" ] && continue
+            case "$line" in
+              *=*) ;;
+              *)
+                echo "::warning::ignoring malformed tf-vars line (no '='): $line"
+                continue
+                ;;
+            esac
+            name="${line%%=*}"
+            value="${line#*=}"
+            [ -z "$value" ] && continue
+            export "TF_VAR_${name}=${value}"
+          done <<< "$TF_VARS_INPUT"
+
+          targets=()
+          while IFS= read -r target; do
+            target="${target#"${target%%[![:space:]]*}"}"
+            target="${target%"${target##*[![:space:]]}"}"
+            [ -z "$target" ] && continue
+            targets+=("-target=${target}")
+          done <<< "$TARGET_RESOURCES"
+
+          if [ "${#targets[@]}" -eq 0 ]; then
+            echo "::error::No Terraform target resources were provided." >&2
+            exit 1
+          fi
+
+          terraform apply -auto-approve -input=false "${targets[@]}"
