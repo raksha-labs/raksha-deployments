@@ -43,6 +43,10 @@ on:
         description: "Space-separated short names of services in this project (e.g. 'portal-backend portal admin'). Each becomes 'raksha-${name}-${environment}' for ECS update-service."
         type: string
         required: true
+      cluster-name:
+        description: "ECS cluster name. Defaults to '${project-name}-${environment}' for backwards compatibility; Raksha shared runtime uses 'raksha-${environment}'."
+        type: string
+        default: ""
       tf-vars:
         description: "Multi-line list of name=value, one per line, passed as -var to terraform apply."
         type: string
@@ -164,7 +168,10 @@ jobs:
       - name: Force new ECS deployments
         run: |
           set -eu
-          CLUSTER="${{ inputs.project-name }}-${{ inputs.environment }}"
+          CLUSTER="${{ inputs.cluster-name }}"
+          if [ -z "$CLUSTER" ]; then
+            CLUSTER="${{ inputs.project-name }}-${{ inputs.environment }}"
+          fi
           for svc in ${{ inputs.services }}; do
             SERVICE="raksha-${svc}-${{ inputs.environment }}"
             echo "→ Deploying $SERVICE on cluster $CLUSTER"
