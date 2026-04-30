@@ -43,7 +43,7 @@ on:
         description: "Space-separated short names of services in this project (e.g. 'portal-backend portal admin'). Each becomes 'raksha-${name}-${environment}' for ECS update-service."
         type: string
         required: true
-      cluster-name:
+      cluster_name:
         description: "ECS cluster name. Defaults to '${project-name}-${environment}' for backwards compatibility; Raksha shared runtime uses 'raksha-${environment}'."
         type: string
         default: ""
@@ -168,7 +168,7 @@ jobs:
       - name: Force new ECS deployments
         run: |
           set -eu
-          CLUSTER="${{ inputs.cluster-name }}"
+          CLUSTER="${{ inputs.cluster_name }}"
           if [ -z "$CLUSTER" ]; then
             CLUSTER="${{ inputs.project-name }}-${{ inputs.environment }}"
           fi
