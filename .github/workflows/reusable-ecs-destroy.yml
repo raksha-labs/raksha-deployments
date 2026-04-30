@@ -141,13 +141,25 @@ jobs:
           TF_VAR_aws_region: ${{ inputs.aws-region }}
         run: |
           set -eu
-          extra_args=()
+          # See reusable-ecs-deploy.yml for rationale: TF_VAR_* exports
+          # parse complex types (map/list/object) as JSON, while -var=
+          # parses as HCL. Our *_static_env / *_secret_env values are JSON.
           while IFS= read -r line; do
             line="${line#"${line%%[![:space:]]*}"}"
             line="${line%"${line##*[![:space:]]}"}"
             [ -z "$line" ] && continue
-            extra_args+=(-var="$line")
+            case "$line" in
+              *=*) ;;
+              *)
+                echo "::warning::ignoring malformed tf-vars line (no '='): $line"
+                continue
+                ;;
+            esac
+            name="${line%%=*}"
+            value="${line#*=}"
+            [ -z "$value" ] && continue
+            export "TF_VAR_${name}=${value}"
           done <<< "${{ inputs.tf-vars }}"
 
-          terraform plan -destroy -input=false -out=cleanup.tfplan "${extra_args[@]}"
+          terraform plan -destroy -input=false -out=cleanup.tfplan
           terraform apply -auto-approve -input=false cleanup.tfplan

@@ -128,19 +128,30 @@ jobs:
           TF_VAR_aws_region: ${{ inputs.aws-region }}
         run: |
           set -eu
-          extra_args=()
+          # tf-vars come in as one "name=value" per line. Export each as
+          # TF_VAR_<name> rather than passing -var=, because TF_VAR_*
+          # parses complex types (map/list/object) as JSON — which is the
+          # natural format the GitHub vars already hold for *_static_env
+          # / *_secret_env. -var= would parse values as HCL, where map
+          # syntax requires `=` not `:` and JSON literals fail.
           while IFS= read -r line; do
             line="${line#"${line%%[![:space:]]*}"}"   # trim leading
             line="${line%"${line##*[![:space:]]}"}"   # trim trailing
             [ -z "$line" ] && continue
-            # Skip "name=" with no value — terraform cannot parse an empty expression.
-            # Variables that aren't set on the caller side fall back to their declared default.
             case "$line" in
-              *=) continue ;;
+              *=*) ;;
+              *)
+                echo "::warning::ignoring malformed tf-vars line (no '='): $line"
+                continue
+                ;;
             esac
-            extra_args+=(-var="$line")
+            name="${line%%=*}"
+            value="${line#*=}"
+            # Skip empty values — terraform falls back to the variable's declared default.
+            [ -z "$value" ] && continue
+            export "TF_VAR_${name}=${value}"
           done <<< "${{ inputs.tf-vars }}"
-          terraform apply -auto-approve -input=false "${extra_args[@]}"
+          terraform apply -auto-approve -input=false
 
       - name: Force new ECS deployments
         run: |
