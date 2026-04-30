@@ -175,6 +175,13 @@ services:
       ALERT_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_notifier?sslmode=disable
       ALERT_CONTROL_INTERNAL_PEER_TOKEN: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway}
       ALERT_CONTROL_WATCH_TIMEOUT_SECS: "25"
+      # Fixture-rendered receiver test path: alert-control-api proxies test
+      # requests with an inline alert payload to notifier-runtime. Internal
+      # to the docker network — the runtime binds 0.0.0.0:9094 with no host
+      # port mapping. Token must match NOTIFIER_INTERNAL_HTTP_PEER_TOKEN
+      # on the notifier-runtime service.
+      NOTIFIER_RUNTIME_INTERNAL_URL: http://notifier-runtime:9094
+      NOTIFIER_RUNTIME_PEER_TOKEN: dev-peer-token-notifier-gateway
     ports:
       - "8086:8083"
     depends_on:
@@ -201,6 +208,14 @@ services:
       AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
       NOTIFIER_VERSION_STORE_PATH: /data/version-store
       HEALTH_CHECK_PORT: "8080"
+      # Internal HTTP surface for fixture-rendered receiver tests.
+      # Bind on all interfaces so alert-control-api (on the docker network)
+      # can reach it. NOT exposed via a host port mapping below — internal
+      # to the docker network only. Token must match the value passed in
+      # NOTIFIER_RUNTIME_PEER_TOKEN on alert-control-api.
+      NOTIFIER_INTERNAL_HTTP_ENABLED: "true"
+      NOTIFIER_INTERNAL_HTTP_BIND_ADDRESS: "0.0.0.0:9094"
+      NOTIFIER_INTERNAL_HTTP_PEER_TOKEN: dev-peer-token-notifier-gateway
       WORKBENCH_RECEIVER_BASE_URL: http://portal-backend:3001/v1/internal/receivers
       RAKSHA_WEB_PORTAL_URL: http://localhost:3000
     volumes:

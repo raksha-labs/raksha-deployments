@@ -92,3 +92,7 @@ override.tf.json
 # Local runtime data
 var/
 docker-compose.override.yml
+
+# Per-environment SSM seed files. Only the *.example.yaml template is committed.
+config/ssm/*.yaml
+!config/ssm/*.example.yaml

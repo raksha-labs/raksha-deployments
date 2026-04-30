@@ -139,6 +139,9 @@ jobs:
         env:
           TF_VAR_environment: ${{ inputs.environment }}
           TF_VAR_aws_region: ${{ inputs.aws-region }}
+          # See reusable-ecs-deploy.yml for why tf-vars must be passed
+          # via env (not ${{ }} inlined into the shell script).
+          TF_VARS_INPUT: ${{ inputs.tf-vars }}
         run: |
           set -eu
           # See reusable-ecs-deploy.yml for rationale: TF_VAR_* exports
@@ -159,7 +162,7 @@ jobs:
             value="${line#*=}"
             [ -z "$value" ] && continue
             export "TF_VAR_${name}=${value}"
-          done <<< "${{ inputs.tf-vars }}"
+          done <<< "$TF_VARS_INPUT"
 
           terraform plan -destroy -input=false -out=cleanup.tfplan
           terraform apply -auto-approve -input=false cleanup.tfplan

@@ -1,0 +1,127 @@
+# Per-environment SSM Parameter Store seed file.
+#
+# Copy this file to raksha-ssm.<env>.yaml (e.g. raksha-ssm.dev.yaml). Real
+# files matching that pattern are gitignored — they never enter the repo.
+#
+# Each top-level key is the container name as it appears in ECS task
+# definitions. For each container, "static" entries become SSM String
+# parameters at /raksha/<env>/<container>/static/<KEY> and "secret"
+# entries become SSM SecureString parameters at
+# /raksha/<env>/<container>/secret/<KEY>. Each service's Terraform reads
+# them via aws_ssm_parameters_by_path data sources.
+#
+# Apply with:
+#   scripts/seed_ssm.py --env dev --file config/ssm/raksha-ssm.dev.yaml
+#   scripts/seed_ssm.py --env dev --file config/ssm/raksha-ssm.dev.yaml --apply
+#
+# All containers are listed below. Anything you don't need yet, leave the
+# block empty — the script just skips it. Hardcoded defaults baked into
+# each service's Terraform (PORT, BIND_ADDR, HEALTH_CHECK_*, etc.) are NOT
+# overridden by these — they merge on top.
+
+# -- ingestion-gateway repo --------------------------------------------------
+
+ingestion-gateway:
+  static:
+    REDIS_URL: "redis://raksha-redis-dev.example.cache.amazonaws.com:6379"
+    LOG_LEVEL: "info"
+  secret: {}
+
+stream-control-api:
+  static:
+    DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_gateway"
+    LOG_LEVEL: "info"
+  secret:
+    DATABASE_PASSWORD: "REPLACE_ME"
+
+# -- engine repo -------------------------------------------------------------
+
+engine:
+  static:
+    DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_engine"
+    REDIS_URL: "redis://raksha-redis-dev.example.cache.amazonaws.com:6379"
+    LOG_LEVEL: "info"
+  secret:
+    DATABASE_PASSWORD: "REPLACE_ME"
+
+rule-control-api:
+  static:
+    RULE_CONTROL_DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_engine"
+    LOG_LEVEL: "info"
+  secret:
+    RULE_CONTROL_DATABASE_PASSWORD: "REPLACE_ME"
+    RULE_CONTROL_INTERNAL_PEER_TOKEN: "REPLACE_ME"
+
+# -- notifier-gateway repo ---------------------------------------------------
+
+notifier-runtime:
+  static:
+    DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_notifier"
+    REDIS_URL: "redis://raksha-redis-dev.example.cache.amazonaws.com:6379"
+    LOG_LEVEL: "info"
+  secret:
+    DATABASE_PASSWORD: "REPLACE_ME"
+
+alert-control-api:
+  static:
+    ALERT_CONTROL_DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_notifier"
+    LOG_LEVEL: "info"
+  secret:
+    ALERT_CONTROL_DATABASE_PASSWORD: "REPLACE_ME"
+    ALERT_CONTROL_INTERNAL_PEER_TOKEN: "REPLACE_ME"
+
+# -- portal repo -------------------------------------------------------------
+
+portal-backend:
+  static:
+    DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_portal"
+    ENGINE_BASE_URL: "http://raksha-rule-control-api-dev.internal:8082"
+    NOTIFIER_BASE_URL: "http://raksha-alert-control-api-dev.internal:8083"
+    STREAM_CONTROL_BASE_URL: "http://raksha-stream-control-api-dev.internal:8081"
+    SIMLAB_BASE_URL: "http://raksha-simlab-api-dev.internal:8084"
+    AGENT_API_BASE_URL: "http://raksha-agent-api-dev.internal:8090"
+  secret:
+    DATABASE_PASSWORD: "REPLACE_ME"
+    COOKIE_SECRET: "REPLACE_ME"
+    ENGINE_PEER_TOKEN: "REPLACE_ME"
+    NOTIFIER_PEER_TOKEN: "REPLACE_ME"
+    STREAM_CONTROL_PEER_TOKEN: "REPLACE_ME"
+    SIMLAB_PEER_TOKEN: "REPLACE_ME"
+    AGENT_API_PEER_TOKEN: "REPLACE_ME"
+
+portal:
+  static:
+    NEXT_PUBLIC_API_BASE: "https://portal.dev.rakshalabs.io"
+  secret: {}
+
+admin:
+  static:
+    NEXT_PUBLIC_ADMIN_API_BASE: "https://admin.dev.rakshalabs.io"
+  secret: {}
+
+# -- simlab repo -------------------------------------------------------------
+
+simlab-api:
+  static:
+    DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_simlab"
+    RULE_CONTROL_URL: "http://raksha-rule-control-api-dev.internal:8082"
+    NOTIFIER_URL: "http://raksha-alert-control-api-dev.internal:8083"
+    STREAM_CONTROL_URL: "http://raksha-stream-control-api-dev.internal:8081"
+  secret:
+    DATABASE_PASSWORD: "REPLACE_ME"
+
+# -- ai-agents repo ----------------------------------------------------------
+
+agent-api:
+  static:
+    SIMLAB_BASE_URL: "http://raksha-simlab-api-dev.internal:8084"
+    RULE_CONTROL_BASE_URL: "http://raksha-rule-control-api-dev.internal:8082"
+    EGRESS_ALLOWLIST: "api.anthropic.com"
+    ANTHROPIC_BASE_URL: "https://api.anthropic.com"
+  secret:
+    DATABASE_URL: "postgres://raksha:REPLACE_ME@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_ai"
+    AI_KEK_BASE64: "REPLACE_ME"
+    SERVICE_TOKEN: "REPLACE_ME"
+    SIMLAB_PEER_TOKEN: "REPLACE_ME"
+    RULE_CONTROL_PEER_TOKEN: "REPLACE_ME"
+    ADMIN_PEER_TOKEN: "REPLACE_ME"

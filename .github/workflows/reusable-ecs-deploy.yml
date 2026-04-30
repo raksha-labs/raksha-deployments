@@ -126,6 +126,14 @@ jobs:
         env:
           TF_VAR_environment: ${{ inputs.environment }}
           TF_VAR_aws_region: ${{ inputs.aws-region }}
+          # Route tf-vars through an env var, never inline ${{ }} into the
+          # shell script. Inline substitution is raw text replacement, so
+          # JSON values like {"K":"V"} have their inner double quotes
+          # interpreted as bash quote toggles and the JSON is mangled
+          # before our parsing loop sees it. Env vars are passed via
+          # exec without shell re-parsing, so the value is preserved
+          # byte-for-byte.
+          TF_VARS_INPUT: ${{ inputs.tf-vars }}
         run: |
           set -eu
           # tf-vars come in as one "name=value" per line. Export each as
@@ -150,7 +158,7 @@ jobs:
             # Skip empty values — terraform falls back to the variable's declared default.
             [ -z "$value" ] && continue
             export "TF_VAR_${name}=${value}"
-          done <<< "${{ inputs.tf-vars }}"
+          done <<< "$TF_VARS_INPUT"
           terraform apply -auto-approve -input=false
 
       - name: Force new ECS deployments
