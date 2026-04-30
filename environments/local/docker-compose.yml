@@ -143,6 +143,7 @@ services:
     build:
       context: ../../..
       dockerfile: raksha-deployments/environments/local/dockerfiles/engine.Dockerfile
+    command: ["/app/config.toml"]
     environment:
       RUST_LOG: info
       RAKSHA_CONFIG_SOURCE__ENDPOINT: http://rule-control-api:8082
@@ -261,6 +262,7 @@ services:
       context: ../../..
       dockerfile: raksha-deployments/environments/local/dockerfiles/event-gateway.Dockerfile
       target: gateway
+    command: ["/app/config.toml"]
     environment:
       RUST_LOG: info
       AWS_ACCESS_KEY_ID: raksha

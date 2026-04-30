@@ -27,4 +27,3 @@ WORKDIR /app
 EXPOSE 9090
 
 ENTRYPOINT ["raksha-engine"]
-CMD ["/app/config.toml"]

@@ -25,4 +25,3 @@ WORKDIR /app
 EXPOSE 8080 9090
 
 ENTRYPOINT ["raksha-ingestion-gateway"]
-CMD ["/app/config.toml"]
