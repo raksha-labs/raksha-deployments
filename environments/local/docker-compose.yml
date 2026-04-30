@@ -199,6 +199,7 @@ services:
     build:
       context: ../../..
       dockerfile: raksha-deployments/environments/local/dockerfiles/notifier-gateway.Dockerfile
+    command: ["/app/config.toml"]
     environment:
       NODE_ENV: development
       RUST_LOG: info

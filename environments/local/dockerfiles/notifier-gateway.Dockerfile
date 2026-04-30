@@ -24,4 +24,3 @@ WORKDIR /app
 EXPOSE 8080
 
 ENTRYPOINT ["raksha-notifier-gateway"]
-CMD ["/app/config.toml"]
