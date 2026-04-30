@@ -116,6 +116,11 @@ jobs:
             line="${line#"${line%%[![:space:]]*}"}"   # trim leading
             line="${line%"${line##*[![:space:]]}"}"   # trim trailing
             [ -z "$line" ] && continue
+            # Skip "name=" with no value — terraform cannot parse an empty expression.
+            # Variables that aren't set on the caller side fall back to their declared default.
+            case "$line" in
+              *=) continue ;;
+            esac
             extra_args+=(-var="$line")
           done <<< "${{ inputs.tf-vars }}"
           terraform apply -auto-approve -input=false "${extra_args[@]}"
