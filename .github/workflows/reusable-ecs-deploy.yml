@@ -63,7 +63,7 @@ on:
       TF_BACKEND_DYNAMODB_TABLE:
         required: true
       CROSS_REPO_READ_TOKEN:
-        required: true
+        required: false
 
 permissions:
   id-token: write
