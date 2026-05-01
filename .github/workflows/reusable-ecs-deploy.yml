@@ -180,6 +180,17 @@ jobs:
               --output text
           }
 
+          resolve_service_discovery_namespace_id() {
+            if [ -n "${TF_VAR_service_discovery_namespace_id:-}" ]; then
+              printf '%s' "$TF_VAR_service_discovery_namespace_id"
+              return 0
+            fi
+            aws ssm get-parameter \
+              --name "/raksha/${{ inputs.environment }}/core/service_discovery_namespace_id" \
+              --query 'Parameter.Value' \
+              --output text
+          }
+
           while IFS= read -r spec; do
             spec="${spec#"${spec%%[![:space:]]*}"}"
             spec="${spec%"${spec##*[![:space:]]}"}"
@@ -263,6 +274,23 @@ jobs:
                 fi
                 if ! aws iam get-role-policy --role-name "$role_name" --policy-name "$policy_name" >/dev/null 2>&1; then
                   echo "IAM inline role policy $import_id does not exist yet; apply will create it."
+                  continue
+                fi
+                ;;
+              aws_service_discovery_service.*)
+                if [ "${import_id#srv-}" = "$import_id" ]; then
+                  namespace_id="$(resolve_service_discovery_namespace_id)"
+                  resolved_id="$(aws servicediscovery list-services \
+                    --filters "Name=NAMESPACE_ID,Values=$namespace_id,Condition=EQ" \
+                    --query "Services[?Name=='$import_id'] | [0].Id" \
+                    --output text)"
+                  if [ -z "$resolved_id" ] || [ "$resolved_id" = "None" ]; then
+                    echo "Service discovery service $import_id does not exist yet; apply will create it."
+                    continue
+                  fi
+                  import_id="$resolved_id"
+                elif ! aws servicediscovery get-service --id "$import_id" >/dev/null 2>&1; then
+                  echo "Service discovery service $import_id does not exist yet; apply will create it."
                   continue
                 fi
                 ;;
