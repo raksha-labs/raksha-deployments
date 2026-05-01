@@ -1,0 +1,116 @@
+name: RDS power controls
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - dev
+          - stage
+          - prod
+      action:
+        description: Start, stop, or inspect the environment database
+        required: true
+        type: choice
+        options:
+          - status
+          - start
+          - stop
+      confirm_deep_idle:
+        description: I understand this breaks all services that need the database until it is started again.
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  rds-power:
+    name: ${{ inputs.action }} RDS in ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Control RDS instance
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          ACTION: ${{ inputs.action }}
+          CONFIRM_DEEP_IDLE: ${{ inputs.confirm_deep_idle }}
+        run: |
+          set -eu
+
+          db_instance="raksha-${ENVIRONMENT}"
+
+          describe_db() {
+            aws rds describe-db-instances \
+              --db-instance-identifier "$db_instance" \
+              --query "DBInstances[].{id:DBInstanceIdentifier,status:DBInstanceStatus,class:DBInstanceClass,engine:Engine,multiAz:MultiAZ,storageGb:AllocatedStorage}" \
+              --output table
+          }
+
+          describe_db
+
+          if [ "$ACTION" = "status" ]; then
+            exit 0
+          fi
+
+          if [ "$CONFIRM_DEEP_IDLE" != "true" ]; then
+            echo "::error::Set confirm_deep_idle=true before $ACTION. Database stop/start affects every service that needs Postgres." >&2
+            exit 1
+          fi
+
+          status="$(aws rds describe-db-instances \
+            --db-instance-identifier "$db_instance" \
+            --query "DBInstances[0].DBInstanceStatus" \
+            --output text)"
+
+          case "$ACTION" in
+            stop)
+              case "$status" in
+                available)
+                  aws rds stop-db-instance \
+                    --db-instance-identifier "$db_instance" \
+                    --query "DBInstance.{id:DBInstanceIdentifier,status:DBInstanceStatus}" \
+                    --output table
+                  ;;
+                stopped|stopping)
+                  echo "$db_instance is already $status."
+                  ;;
+                *)
+                  echo "::error::$db_instance is $status; refusing to stop from this state." >&2
+                  exit 1
+                  ;;
+              esac
+              ;;
+            start)
+              case "$status" in
+                stopped)
+                  aws rds start-db-instance \
+                    --db-instance-identifier "$db_instance" \
+                    --query "DBInstance.{id:DBInstanceIdentifier,status:DBInstanceStatus}" \
+                    --output table
+                  ;;
+                available|starting)
+                  echo "$db_instance is already $status."
+                  ;;
+                *)
+                  echo "::error::$db_instance is $status; refusing to start from this state." >&2
+                  exit 1
+                  ;;
+              esac
+              ;;
+            *)
+              echo "::error::unknown action: $ACTION" >&2
+              exit 1
+              ;;
+          esac
