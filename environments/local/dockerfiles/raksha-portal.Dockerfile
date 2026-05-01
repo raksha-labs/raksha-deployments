@@ -52,7 +52,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl && \
+    apt-get install -y --no-install-recommends ca-certificates curl && \
+    curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
+      -o /etc/ssl/certs/aws-rds-global-bundle.pem && \
     rm -rf /var/lib/apt/lists/*
 
 # Preserve the pnpm workspace layout so hoisted/symlinked deps resolve.
