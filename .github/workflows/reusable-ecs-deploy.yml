@@ -47,6 +47,10 @@ on:
         description: "ECS cluster name. Defaults to '${project-name}-${environment}' for backwards compatibility; Raksha shared runtime uses 'raksha-${environment}'."
         type: string
         default: ""
+      service-cluster-overrides:
+        description: "Optional newline-separated service=cluster mappings used for post-apply ECS force deployments."
+        type: string
+        default: ""
       tf-vars:
         description: "Multi-line list of name=value, one per line, passed as -var to terraform apply."
         type: string
@@ -342,17 +346,40 @@ jobs:
           terraform apply -auto-approve -input=false
 
       - name: Force new ECS deployments
+        env:
+          SERVICE_CLUSTER_OVERRIDES: ${{ inputs.service-cluster-overrides }}
         run: |
           set -eu
           CLUSTER="${{ inputs.cluster_name }}"
           if [ -z "$CLUSTER" ]; then
             CLUSTER="${{ inputs.project-name }}-${{ inputs.environment }}"
           fi
+
+          cluster_for_service() {
+            local short_name="$1"
+            local line
+            while IFS= read -r line; do
+              line="${line#"${line%%[![:space:]]*}"}"
+              line="${line%"${line##*[![:space:]]}"}"
+              [ -z "$line" ] && continue
+              case "$line" in
+                *=*) ;;
+                *) continue ;;
+              esac
+              if [ "${line%%=*}" = "$short_name" ]; then
+                printf '%s' "${line#*=}"
+                return 0
+              fi
+            done <<< "${SERVICE_CLUSTER_OVERRIDES:-}"
+            printf '%s' "$CLUSTER"
+          }
+
           for svc in ${{ inputs.services }}; do
             SERVICE="raksha-${svc}-${{ inputs.environment }}"
-            echo "→ Deploying $SERVICE on cluster $CLUSTER"
+            TARGET_CLUSTER="$(cluster_for_service "$svc")"
+            echo "→ Deploying $SERVICE on cluster $TARGET_CLUSTER"
             aws ecs update-service \
-              --cluster "$CLUSTER" \
+              --cluster "$TARGET_CLUSTER" \
               --service "$SERVICE" \
               --force-new-deployment \
               --query 'service.deployments[0].{status:status,desired:desiredCount,running:runningCount}' \

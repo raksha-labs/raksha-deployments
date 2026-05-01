@@ -61,10 +61,12 @@ jobs:
         run: |
           set -eu
 
-          cluster="raksha-${ENVIRONMENT}"
+          legacy_cluster="raksha-${ENVIRONMENT}"
+          runtime_cluster="raksha-${ENVIRONMENT}-runtime"
+          control_cluster="raksha-${ENVIRONMENT}-control"
 
           live_services="ingestion-gateway engine notifier-runtime"
-          control_services="portal admin portal-backend stream-control-api rule-control-api alert-control-api"
+          control_services="portal admin portal-backend stream-control-api rule-control-api alert-control-api simlab-api agent-api"
 
           case "$SERVICE_GROUP" in
             live-path)
@@ -83,7 +85,46 @@ jobs:
           esac
 
           service_exists() {
+            local cluster="$1"
+            local service_name="$2"
+            aws ecs describe-services \
+              --cluster "$cluster" \
+              --services "$service_name" \
+              --query "services[?serviceName=='$service_name' && status!='INACTIVE'] | [0].serviceName" \
+              --output text | grep -qx "$service_name"
+          }
+
+          cluster_exists() {
+            local cluster="$1"
+            aws ecs describe-clusters \
+              --clusters "$cluster" \
+              --query "clusters[?clusterName=='$cluster' && status=='ACTIVE'] | [0].clusterName" \
+              --output text | grep -qx "$cluster"
+          }
+
+          cluster_for_service() {
+            local short_name="$1"
+            case " $live_services " in
+              *" $short_name "*)
+                if cluster_exists "$runtime_cluster"; then
+                  printf '%s' "$runtime_cluster"
+                else
+                  printf '%s' "$legacy_cluster"
+                fi
+                ;;
+              *)
+                if cluster_exists "$control_cluster"; then
+                  printf '%s' "$control_cluster"
+                else
+                  printf '%s' "$legacy_cluster"
+                fi
+                ;;
+            esac
+          }
+
+          service_exists_in_cluster() {
             local service_name="$1"
+            local cluster="$2"
             aws ecs describe-services \
               --cluster "$cluster" \
               --services "$service_name" \
@@ -130,15 +171,25 @@ jobs:
           }
 
           describe_selected() {
-            local names=""
             for short_name in $services; do
-              names="$names raksha-${short_name}-${ENVIRONMENT}"
+              local service_name="raksha-${short_name}-${ENVIRONMENT}"
+              local cluster
+              cluster="$(cluster_for_service "$short_name")"
+              if ! service_exists_in_cluster "$service_name" "$cluster"; then
+                if [ "$cluster" != "$legacy_cluster" ] && service_exists_in_cluster "$service_name" "$legacy_cluster"; then
+                  cluster="$legacy_cluster"
+                else
+                  echo "==> $service_name not found in $cluster"
+                  continue
+                fi
+              fi
+              echo "==> $service_name on $cluster"
+              aws ecs describe-services \
+                --cluster "$cluster" \
+                --services "$service_name" \
+                --query "services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,rollout:deployments[0].rolloutState,taskDefinition:taskDefinition}" \
+                --output table
             done
-            aws ecs describe-services \
-              --cluster "$cluster" \
-              --services $names \
-              --query "services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,rollout:deployments[0].rolloutState,taskDefinition:taskDefinition}" \
-              --output table
           }
 
           if [ "$ACTION" = "status" ]; then
@@ -148,13 +199,19 @@ jobs:
 
           for short_name in $services; do
             service_name="raksha-${short_name}-${ENVIRONMENT}"
-            resource_id="service/${cluster}/${service_name}"
+            cluster="$(cluster_for_service "$short_name")"
 
-            echo "==> $ACTION $service_name"
-            if ! service_exists "$service_name"; then
-              echo "  service does not exist in $cluster; skipping"
-              continue
+            echo "==> $ACTION $service_name on $cluster"
+            if ! service_exists "$cluster" "$service_name"; then
+              if [ "$cluster" != "$legacy_cluster" ] && service_exists "$legacy_cluster" "$service_name"; then
+                cluster="$legacy_cluster"
+                echo "  service is still on legacy cluster; using $legacy_cluster"
+              else
+                echo "  service does not exist in $cluster; skipping"
+                continue
+              fi
             fi
+            resource_id="service/${cluster}/${service_name}"
 
             case "$ACTION" in
               stop)
