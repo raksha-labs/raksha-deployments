@@ -1,15 +1,15 @@
-# Single dispatch entry point: pick one or more deploy groups + environment
-# + optional image-tag override. This workflow looks up the catalog, then
-# triggers each owning repo's deploy.yml in rollout_order. Use this when you
-# want to roll selected bounded contexts instead of running each repo's deploy
-# by hand.
+# Single dispatch entry point: pick one or more repo-aligned components +
+# environment + optional image-tag override. This workflow looks up the
+# catalog, then triggers each owning repo's deploy.yml in rollout_order.
+# Use this when you want to roll selected repos instead of running each repo's
+# deploy by hand.
 #
 # Each consumer repo's deploy.yml MUST accept three workflow_dispatch
 # inputs: environment (string), image_tag (string; optional override),
 # build_image (boolean).
 # Triggering uses GitHub's REST API via gh.
 
-name: Dispatch deploy (groups)
+name: Dispatch deploy (components)
 
 on:
   workflow_dispatch:
@@ -23,37 +23,37 @@ on:
           - stage
           - prod
       deploy_all:
-        description: Deploy every group in catalog rollout order
+        description: Deploy all repos in catalog rollout order
         required: true
         type: boolean
         default: false
-      deploy_portal:
-        description: Deploy portal
+      deploy_raksha_portal:
+        description: raksha-portal
         required: true
         type: boolean
         default: false
-      deploy_detection:
-        description: Deploy detection (engine + rule-control)
+      deploy_raksha_engine:
+        description: raksha-engine
         required: true
         type: boolean
         default: false
-      deploy_delivery:
-        description: Deploy delivery (notifier + alert-control)
+      deploy_raksha_notifier_gateway:
+        description: raksha-notifier-gateway
         required: true
         type: boolean
         default: false
-      deploy_ingestion:
-        description: Deploy ingestion
+      deploy_raksha_ingestion_gateway:
+        description: raksha-ingestion-gateway
         required: true
         type: boolean
         default: false
-      deploy_simulation:
-        description: Deploy simulation
+      deploy_raksha_simlab:
+        description: raksha-simlab
         required: true
         type: boolean
         default: false
-      deploy_ai_agents:
-        description: Deploy AI agents
+      deploy_raksha_ai_agents:
+        description: raksha-ai-agents
         required: true
         type: boolean
         default: false
@@ -99,16 +99,16 @@ jobs:
               selected_groups = {s["deploy_group"] for s in catalog["services"]}
           else:
               mapping = {
-                  "portal": "${{ inputs.deploy_portal }}",
-                  "detection": "${{ inputs.deploy_detection }}",
-                  "delivery": "${{ inputs.deploy_delivery }}",
-                  "ingestion": "${{ inputs.deploy_ingestion }}",
-                  "simulation": "${{ inputs.deploy_simulation }}",
-                  "ai-agents": "${{ inputs.deploy_ai_agents }}",
+                  "portal": "${{ inputs.deploy_raksha_portal }}",
+                  "detection": "${{ inputs.deploy_raksha_engine }}",
+                  "delivery": "${{ inputs.deploy_raksha_notifier_gateway }}",
+                  "ingestion": "${{ inputs.deploy_raksha_ingestion_gateway }}",
+                  "simulation": "${{ inputs.deploy_raksha_simlab }}",
+                  "ai-agents": "${{ inputs.deploy_raksha_ai_agents }}",
               }
               selected_groups = {group for group, enabled in mapping.items() if enabled == "true"}
           if not selected_groups:
-              raise SystemExit("Select at least one deploy group, or tick deploy_all.")
+              raise SystemExit("Select at least one component repo, or tick deploy_all.")
           services = catalog["services"]
           services = [s for s in services if s["deploy_group"] in selected_groups]
           services.sort(key=lambda s: s["rollout_order"])
