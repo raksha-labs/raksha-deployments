@@ -1,0 +1,187 @@
+name: ECS power controls
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - dev
+          - stage
+          - prod
+      action:
+        description: Start, stop, or inspect selected services
+        required: true
+        type: choice
+        options:
+          - status
+          - start
+          - stop
+      service_group:
+        description: Service group
+        required: true
+        type: choice
+        options:
+          - live-path
+          - control-path
+          - all
+      desired_count:
+        description: Desired count when starting services
+        required: true
+        type: choice
+        options:
+          - "1"
+          - "2"
+        default: "1"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  ecs-power:
+    name: ${{ inputs.action }} ${{ inputs.service_group }} in ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: eu-west-1
+
+      - name: Scale selected ECS services
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          ACTION: ${{ inputs.action }}
+          SERVICE_GROUP: ${{ inputs.service_group }}
+          START_DESIRED_COUNT: ${{ inputs.desired_count }}
+        run: |
+          set -eu
+
+          cluster="raksha-${ENVIRONMENT}"
+
+          live_services="ingestion-gateway engine notifier-runtime"
+          control_services="portal admin portal-backend stream-control-api rule-control-api alert-control-api"
+
+          case "$SERVICE_GROUP" in
+            live-path)
+              services="$live_services"
+              ;;
+            control-path)
+              services="$control_services"
+              ;;
+            all)
+              services="$live_services $control_services"
+              ;;
+            *)
+              echo "::error::unknown service_group: $SERVICE_GROUP" >&2
+              exit 1
+              ;;
+          esac
+
+          service_exists() {
+            local service_name="$1"
+            aws ecs describe-services \
+              --cluster "$cluster" \
+              --services "$service_name" \
+              --query "services[?serviceName=='$service_name' && status!='INACTIVE'] | [0].serviceName" \
+              --output text | grep -qx "$service_name"
+          }
+
+          target_exists() {
+            local resource_id="$1"
+            aws application-autoscaling describe-scalable-targets \
+              --service-namespace ecs \
+              --resource-ids "$resource_id" \
+              --scalable-dimension ecs:service:DesiredCount \
+              --query "ScalableTargets[?ResourceId=='$resource_id'] | [0].ResourceId" \
+              --output text | grep -qx "$resource_id"
+          }
+
+          set_min_capacity() {
+            local resource_id="$1"
+            local min_capacity="$2"
+            local max_capacity
+
+            if ! target_exists "$resource_id"; then
+              echo "  autoscaling target not registered; skipping min-capacity update"
+              return 0
+            fi
+
+            max_capacity="$(aws application-autoscaling describe-scalable-targets \
+              --service-namespace ecs \
+              --resource-ids "$resource_id" \
+              --scalable-dimension ecs:service:DesiredCount \
+              --query "ScalableTargets[?ResourceId=='$resource_id'] | [0].MaxCapacity" \
+              --output text)"
+            if [ -z "$max_capacity" ] || [ "$max_capacity" = "None" ] || [ "$max_capacity" -lt "$min_capacity" ]; then
+              max_capacity="$min_capacity"
+            fi
+
+            aws application-autoscaling register-scalable-target \
+              --service-namespace ecs \
+              --resource-id "$resource_id" \
+              --scalable-dimension ecs:service:DesiredCount \
+              --min-capacity "$min_capacity" \
+              --max-capacity "$max_capacity" >/dev/null
+          }
+
+          describe_selected() {
+            local names=""
+            for short_name in $services; do
+              names="$names raksha-${short_name}-${ENVIRONMENT}"
+            done
+            aws ecs describe-services \
+              --cluster "$cluster" \
+              --services $names \
+              --query "services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,rollout:deployments[0].rolloutState,taskDefinition:taskDefinition}" \
+              --output table
+          }
+
+          if [ "$ACTION" = "status" ]; then
+            describe_selected
+            exit 0
+          fi
+
+          for short_name in $services; do
+            service_name="raksha-${short_name}-${ENVIRONMENT}"
+            resource_id="service/${cluster}/${service_name}"
+
+            echo "==> $ACTION $service_name"
+            if ! service_exists "$service_name"; then
+              echo "  service does not exist in $cluster; skipping"
+              continue
+            fi
+
+            case "$ACTION" in
+              stop)
+                set_min_capacity "$resource_id" 0
+                aws ecs update-service \
+                  --cluster "$cluster" \
+                  --service "$service_name" \
+                  --desired-count 0 \
+                  --query "service.{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount}" \
+                  --output table
+                ;;
+              start)
+                set_min_capacity "$resource_id" "$START_DESIRED_COUNT"
+                aws ecs update-service \
+                  --cluster "$cluster" \
+                  --service "$service_name" \
+                  --desired-count "$START_DESIRED_COUNT" \
+                  --force-new-deployment \
+                  --query "service.{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount}" \
+                  --output table
+                ;;
+              *)
+                echo "::error::unknown action: $ACTION" >&2
+                exit 1
+                ;;
+            esac
+          done
+
+          echo
+          describe_selected
