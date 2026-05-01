@@ -44,6 +44,10 @@ on:
         description: "Multi-line BUILD_ARG=value entries (one per line)."
         type: string
         default: ""
+      target:
+        description: "Optional Dockerfile target stage."
+        type: string
+        default: ""
       push:
         description: "Push to ECR after build. Requires AWS_INFRA_ROLE_ARN secret."
         type: boolean
@@ -140,6 +144,7 @@ jobs:
         with:
           context: ${{ inputs.build-context }}
           file: ${{ inputs.dockerfile }}
+          target: ${{ inputs.target }}
           push: ${{ inputs.push }}
           build-args: ${{ inputs.build-args }}
           tags: |
