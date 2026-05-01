@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # Build context expected at the raksha-labs/ root so the Cargo
 # `path = "../raksha-contracts"` dependency resolves.
 
@@ -14,14 +15,19 @@ COPY raksha-contracts ./raksha-contracts
 COPY raksha-engine           ./raksha-engine
 
 WORKDIR /build/raksha-engine
-RUN cargo build --release --bin raksha-engine
+RUN --mount=type=cache,id=raksha-engine-cargo-registry,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=raksha-engine-cargo-git,target=/usr/local/cargo/git \
+    --mount=type=cache,id=raksha-engine-target,target=/build/raksha-engine/target \
+    cargo build --release --bin raksha-engine && \
+    mkdir -p /out && \
+    cp target/release/raksha-engine /out/raksha-engine
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl libssl3 && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/raksha-engine/target/release/raksha-engine /usr/local/bin/raksha-engine
+COPY --from=builder /out/raksha-engine /usr/local/bin/raksha-engine
 
 WORKDIR /app
 EXPOSE 9090
