@@ -15,6 +15,10 @@ on:
         description: "Newline-separated Terraform resource addresses to apply before the main deploy."
         type: string
         required: true
+      import_resources:
+        description: "Optional newline-separated Terraform import specs in address=id form. Existing AWS resources are imported before target apply."
+        type: string
+        default: ""
       tf-vars:
         description: "Multi-line list of name=value, one per line, passed as TF_VAR_* to terraform."
         type: string
@@ -99,6 +103,7 @@ jobs:
           TF_VAR_environment: ${{ inputs.environment }}
           TF_VAR_aws_region: ${{ inputs.aws-region }}
           TF_VARS_INPUT: ${{ inputs.tf-vars }}
+          IMPORT_RESOURCES: ${{ inputs.import_resources }}
           TARGET_RESOURCES: ${{ inputs.target_resources }}
         run: |
           set -eu
@@ -118,6 +123,45 @@ jobs:
             [ -z "$value" ] && continue
             export "TF_VAR_${name}=${value}"
           done <<< "$TF_VARS_INPUT"
+
+          while IFS= read -r spec; do
+            spec="${spec#"${spec%%[![:space:]]*}"}"
+            spec="${spec%"${spec##*[![:space:]]}"}"
+            [ -z "$spec" ] && continue
+            case "$spec" in
+              *=*) ;;
+              *)
+                echo "::warning::ignoring malformed import_resources line (no '='): $spec"
+                continue
+                ;;
+            esac
+
+            address="${spec%%=*}"
+            import_id="${spec#*=}"
+            [ -z "$address" ] && continue
+            [ -z "$import_id" ] && continue
+
+            if terraform state show "$address" >/dev/null 2>&1; then
+              echo "Terraform state already contains $address; skipping import."
+              continue
+            fi
+
+            case "$address" in
+              aws_ecr_repository.*)
+                if ! aws ecr describe-repositories --repository-names "$import_id" >/dev/null 2>&1; then
+                  echo "ECR repository $import_id does not exist yet; target apply will create it."
+                  continue
+                fi
+                ;;
+              *)
+                echo "::error::Unsupported import_resources address: $address. Only aws_ecr_repository imports are supported here." >&2
+                exit 1
+                ;;
+            esac
+
+            echo "Importing existing AWS resource $import_id into $address"
+            terraform import -input=false "$address" "$import_id"
+          done <<< "${IMPORT_RESOURCES:-}"
 
           targets=()
           while IFS= read -r target; do
