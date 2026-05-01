@@ -294,6 +294,41 @@ jobs:
                   continue
                 fi
                 ;;
+              aws_ecs_service.*)
+                cluster_name="${import_id%%/*}"
+                service_name="${import_id#*/}"
+                if [ -z "$cluster_name" ] || [ -z "$service_name" ] || [ "$cluster_name" = "$service_name" ]; then
+                  echo "::warning::ignoring malformed ECS service import id: $import_id"
+                  continue
+                fi
+                if ! aws ecs describe-services \
+                  --cluster "$cluster_name" \
+                  --services "$service_name" \
+                  --query 'services[0].serviceArn' \
+                  --output text | grep -q '^arn:'; then
+                  echo "ECS service $import_id does not exist yet; apply will create it."
+                  continue
+                fi
+                ;;
+              aws_appautoscaling_target.*)
+                service_namespace="${import_id%%/*}"
+                scalable_dimension="${import_id##*/}"
+                resource_id="${import_id#*/}"
+                resource_id="${resource_id%/*}"
+                if [ -z "$service_namespace" ] || [ -z "$resource_id" ] || [ -z "$scalable_dimension" ] || [ "$service_namespace" = "$import_id" ]; then
+                  echo "::warning::ignoring malformed Application Auto Scaling target import id: $import_id"
+                  continue
+                fi
+                if ! aws application-autoscaling describe-scalable-targets \
+                  --service-namespace "$service_namespace" \
+                  --resource-ids "$resource_id" \
+                  --scalable-dimension "$scalable_dimension" \
+                  --query 'ScalableTargets[0].ResourceId' \
+                  --output text | grep -qx "$resource_id"; then
+                  echo "Application Auto Scaling target $import_id does not exist yet; apply will create it."
+                  continue
+                fi
+                ;;
               *)
                 echo "::error::Unsupported import_resources address: $address" >&2
                 exit 1
