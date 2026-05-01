@@ -16,7 +16,7 @@ RUN cargo build --release --bin raksha-ingestion-gateway
 
 FROM debian:bookworm-slim AS gateway
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates libssl3 && \
+    apt-get install -y --no-install-recommends ca-certificates curl libssl3 && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/raksha-ingestion-gateway/target/release/raksha-ingestion-gateway /usr/local/bin/raksha-ingestion-gateway
