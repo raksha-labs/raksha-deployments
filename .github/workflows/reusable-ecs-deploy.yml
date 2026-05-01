@@ -51,6 +51,10 @@ on:
         description: "Multi-line list of name=value, one per line, passed as -var to terraform apply."
         type: string
         default: ""
+      import_resources:
+        description: "Optional newline-separated Terraform import specs in address=id-or-name form. Existing AWS resources are imported before apply."
+        type: string
+        default: ""
       working-directory:
         type: string
         default: infra/terraform
@@ -138,6 +142,7 @@ jobs:
           # exec without shell re-parsing, so the value is preserved
           # byte-for-byte.
           TF_VARS_INPUT: ${{ inputs.tf-vars }}
+          IMPORT_RESOURCES: ${{ inputs.import_resources }}
         run: |
           set -eu
           # tf-vars come in as one "name=value" per line. Export each as
@@ -163,6 +168,114 @@ jobs:
             [ -z "$value" ] && continue
             export "TF_VAR_${name}=${value}"
           done <<< "$TF_VARS_INPUT"
+
+          resolve_vpc_id() {
+            if [ -n "${TF_VAR_vpc_id:-}" ]; then
+              printf '%s' "$TF_VAR_vpc_id"
+              return 0
+            fi
+            aws ssm get-parameter \
+              --name "/raksha/${{ inputs.environment }}/core/vpc_id" \
+              --query 'Parameter.Value' \
+              --output text
+          }
+
+          while IFS= read -r spec; do
+            spec="${spec#"${spec%%[![:space:]]*}"}"
+            spec="${spec%"${spec##*[![:space:]]}"}"
+            [ -z "$spec" ] && continue
+            case "$spec" in
+              *=*) ;;
+              *)
+                echo "::warning::ignoring malformed import_resources line (no '='): $spec"
+                continue
+                ;;
+            esac
+
+            address="${spec%%=*}"
+            import_id="${spec#*=}"
+            [ -z "$address" ] && continue
+            [ -z "$import_id" ] && continue
+
+            if terraform state show "$address" >/dev/null 2>&1; then
+              echo "Terraform state already contains $address; skipping import."
+              continue
+            fi
+
+            case "$address" in
+              aws_ecr_repository.*)
+                if ! aws ecr describe-repositories --repository-names "$import_id" >/dev/null 2>&1; then
+                  echo "ECR repository $import_id does not exist yet; apply will create it."
+                  continue
+                fi
+                ;;
+              aws_cloudwatch_log_group.*)
+                if ! aws logs describe-log-groups --log-group-name-prefix "$import_id" \
+                  --query "logGroups[?logGroupName=='$import_id'] | [0].logGroupName" \
+                  --output text | grep -qx "$import_id"; then
+                  echo "CloudWatch log group $import_id does not exist yet; apply will create it."
+                  continue
+                fi
+                ;;
+              aws_security_group.*)
+                if [ "${import_id#sg-}" = "$import_id" ]; then
+                  vpc_id="$(resolve_vpc_id)"
+                  resolved_id="$(aws ec2 describe-security-groups \
+                    --filters "Name=vpc-id,Values=$vpc_id" "Name=group-name,Values=$import_id" \
+                    --query 'SecurityGroups[0].GroupId' \
+                    --output text)"
+                  if [ -z "$resolved_id" ] || [ "$resolved_id" = "None" ]; then
+                    echo "Security group $import_id does not exist yet; apply will create it."
+                    continue
+                  fi
+                  import_id="$resolved_id"
+                elif ! aws ec2 describe-security-groups --group-ids "$import_id" >/dev/null 2>&1; then
+                  echo "Security group $import_id does not exist yet; apply will create it."
+                  continue
+                fi
+                ;;
+              aws_iam_role.*)
+                if ! aws iam get-role --role-name "$import_id" >/dev/null 2>&1; then
+                  echo "IAM role $import_id does not exist yet; apply will create it."
+                  continue
+                fi
+                ;;
+              aws_iam_role_policy_attachment.*)
+                role_name="${import_id%%/*}"
+                policy_arn="${import_id#*/}"
+                if [ -z "$role_name" ] || [ -z "$policy_arn" ] || [ "$role_name" = "$policy_arn" ]; then
+                  echo "::warning::ignoring malformed IAM role policy attachment import id: $import_id"
+                  continue
+                fi
+                if ! aws iam list-attached-role-policies --role-name "$role_name" \
+                  --query "AttachedPolicies[?PolicyArn=='$policy_arn'] | [0].PolicyArn" \
+                  --output text | grep -qx "$policy_arn"; then
+                  echo "IAM policy attachment $import_id does not exist yet; apply will create it."
+                  continue
+                fi
+                ;;
+              aws_iam_role_policy.*)
+                role_name="${import_id%%:*}"
+                policy_name="${import_id#*:}"
+                if [ -z "$role_name" ] || [ -z "$policy_name" ] || [ "$role_name" = "$policy_name" ]; then
+                  echo "::warning::ignoring malformed IAM role policy import id: $import_id"
+                  continue
+                fi
+                if ! aws iam get-role-policy --role-name "$role_name" --policy-name "$policy_name" >/dev/null 2>&1; then
+                  echo "IAM inline role policy $import_id does not exist yet; apply will create it."
+                  continue
+                fi
+                ;;
+              *)
+                echo "::error::Unsupported import_resources address: $address" >&2
+                exit 1
+                ;;
+            esac
+
+            echo "Importing existing AWS resource $import_id into $address"
+            terraform import -input=false "$address" "$import_id"
+          done <<< "${IMPORT_RESOURCES:-}"
+
           terraform apply -auto-approve -input=false
 
       - name: Force new ECS deployments
