@@ -152,6 +152,7 @@ services:
       RAKSHA_CONFIG_SOURCE__VERSION_STORE_PATH: /data/version-store
       RAKSHA_CONFIG_SOURCE__WATCH_TIMEOUT_SECS: "25"
       RAKSHA_SOURCE__REDIS__URL: redis://redis:6379
+      RAKSHA_SOURCE__REDIS__STREAM_KEYS: "raksha:events:inbound"
       RAKSHA_SINK__REDIS__URL: redis://redis:6379
     volumes:
       - ./configs/engine.toml:/app/config.toml:ro
@@ -249,6 +250,7 @@ services:
       STREAM_CONTROL_TENANTS_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_portal?sslmode=disable
       STREAM_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-event-gateway
       STREAM_CONTROL_SIM_REDIS_URL: redis://redis:6379
+      STREAM_CONTROL_SIM_SHARED_ROUTE_KEY: raksha:events:inbound
     ports:
       - "8087:8081"
     depends_on:
