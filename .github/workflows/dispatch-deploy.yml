@@ -4,10 +4,10 @@
 # Use this when you want to roll selected repos instead of running each repo's
 # deploy by hand.
 #
-# Each consumer repo's deploy.yml MUST accept three workflow_dispatch
-# inputs: environment (string), image_tag (string; optional override),
-# build_image (boolean).
-# Triggering uses GitHub's REST API via gh.
+# Each consumer repo's deploy.yml MUST accept three workflow_dispatch inputs:
+# environment (string), image_tag (string; optional override), build_image
+# (boolean). Triggering uses GitHub's REST API via gh. This workflow waits for
+# every downstream deploy run and fails if any selected repo fails.
 
 name: Dispatch deploy (components)
 
@@ -129,19 +129,102 @@ jobs:
             exit 1
           fi
 
-      - name: Trigger each consumer repo's deploy.yml
+      - name: Trigger and wait for each consumer repo's deploy.yml
         env:
           GH_TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
         run: |
           set -eu
+
+          wait_for_deploy() {
+            repo="$1"
+            marker="$2"
+            echo "Waiting for raksha-labs/$repo deploy run created after $marker"
+
+            run_id=""
+            for _ in $(seq 1 30); do
+              run_id=$(
+                gh run list \
+                  --repo "raksha-labs/$repo" \
+                  --workflow deploy.yml \
+                  --branch master \
+                  --event workflow_dispatch \
+                  --json databaseId,createdAt \
+                  --limit 20 \
+                | MARKER="$marker" python3 -c '
+          import datetime as dt
+          import json
+          import os
+          import sys
+
+          marker = dt.datetime.fromisoformat(os.environ["MARKER"].replace("Z", "+00:00"))
+          runs = json.load(sys.stdin)
+          candidates = []
+          for run in runs:
+              created = dt.datetime.fromisoformat(run["createdAt"].replace("Z", "+00:00"))
+              if created >= marker:
+                  candidates.append((created, run["databaseId"]))
+          if candidates:
+              candidates.sort()
+              print(candidates[0][1])
+          '
+              )
+              if [ -n "$run_id" ]; then
+                break
+              fi
+              sleep 10
+            done
+
+            if [ -z "$run_id" ]; then
+              echo "::error::Timed out waiting for raksha-labs/$repo deploy run to appear."
+              printf '| `%s` | not found | - | Timed out waiting for workflow run |\n' "$repo" >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+
+            while true; do
+              run_info=$(gh api "repos/raksha-labs/$repo/actions/runs/$run_id")
+              parsed=$(printf '%s' "$run_info" | python3 -c '
+          import json
+          import sys
+
+          run = json.load(sys.stdin)
+          print(run["status"], run.get("conclusion") or "none", run["html_url"])
+          ')
+              set -- $parsed
+              status="$1"
+              conclusion="$2"
+              url="$3"
+              echo "raksha-labs/$repo deploy run $run_id: $status/$conclusion"
+
+              if [ "$status" = "completed" ]; then
+                if [ "$conclusion" = "success" ]; then
+                  printf '| `%s` | success | [run](%s) | - |\n' "$repo" "$url" >> "$GITHUB_STEP_SUMMARY"
+                  break
+                fi
+                printf '| `%s` | %s | [run](%s) | Downstream deploy failed |\n' "$repo" "$conclusion" "$url" >> "$GITHUB_STEP_SUMMARY"
+                echo "::error::Deploy failed for raksha-labs/$repo: $url"
+                exit 1
+              fi
+              sleep 30
+            done
+          }
+
           repos='${{ steps.repos.outputs.repos }}'
           echo "==> dispatching deploy to: $repos"
+          {
+            echo "## Component deploy results"
+            echo
+            echo "| Repo | Result | Run | Notes |"
+            echo "| --- | --- | --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
           for repo in $(echo "$repos" | python3 -c 'import json,sys; print(" ".join(json.load(sys.stdin)))'); do
             echo "→ raksha-labs/$repo"
+            marker="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             gh workflow run deploy.yml \
               --repo "raksha-labs/$repo" \
               --ref master \
               -f environment='${{ inputs.environment }}' \
               -f image_tag='${{ inputs.image_tag }}' \
               -f build_image='${{ inputs.build_image }}'
+            wait_for_deploy "$repo" "$marker"
           done
