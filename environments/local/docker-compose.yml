@@ -244,6 +244,9 @@ services:
       STREAM_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_gateway?sslmode=disable
       # Evidence fetch: reads source_envelopes from the hot-tier raw DB.
       STREAM_CONTROL_RAW_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_gateway_raw?sslmode=disable
+      # API-key resolution for live capture (Alchemy URL substitution etc.).
+      # tenants.tenant_api_keys is portal-owned; capture reads it from there.
+      STREAM_CONTROL_TENANTS_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_portal?sslmode=disable
       STREAM_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-event-gateway
       STREAM_CONTROL_SIM_REDIS_URL: redis://redis:6379
     ports:
