@@ -59,6 +59,11 @@ on:
         required: true
         type: boolean
         default: false
+      deploy_risk_dashboard:
+        description: "risk-dashboard"
+        required: true
+        type: boolean
+        default: false
       image_tag:
         description: Optional image tag override. Leave empty to deploy the tags recorded in environments/<env>/services.yaml.
         required: false
@@ -109,6 +114,7 @@ jobs:
                   "ingestion": "${{ inputs.deploy_ingestion_gateway }}",
                   "simulation": "${{ inputs.deploy_simlab }}",
                   "ai-agents": "${{ inputs.deploy_ai_agents }}",
+                  "risk-dashboard": "${{ inputs.deploy_risk_dashboard }}",
               }
               selected_groups = {group for group, enabled in mapping.items() if enabled == "true"}
           if not selected_groups:

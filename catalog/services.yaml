@@ -96,3 +96,20 @@ services:
     deploy_group: ai-agents
     rollout_order: 110
     default_strategy: rolling
+
+  # ── Risk dashboard context (raksha-risk-dashboard) ────────────────
+  - name: risk-monitor-api
+    source_repo: raksha-risk-dashboard
+    source_path: apps/risk-monitor-api
+    image_repo: raksha-risk-monitor-api
+    deploy_group: risk-dashboard
+    rollout_order: 115
+    default_strategy: rolling
+
+  - name: risk-monitor-ui
+    source_repo: raksha-risk-dashboard
+    source_path: apps/risk-monitor-ui
+    image_repo: raksha-risk-monitor-ui
+    deploy_group: risk-dashboard
+    rollout_order: 120
+    default_strategy: rolling

@@ -65,6 +65,7 @@ services:
       - ../../../raksha-ingestion-gateway/db/control/schema.sql:/schemas/gateway-control/schema.sql:ro
       - ../../../raksha-simlab/db/control/schema.sql:/schemas/simlab/schema.sql:ro
       - ../../../raksha-ai-agents/db/schema:/schemas/ai:ro
+      - ../../../raksha-risk-dashboard/apps/risk-monitor-api/db/control/schema.sql:/schemas/risk-monitor/schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U raksha -d raksha_portal"]
       interval: 5s
@@ -524,6 +525,65 @@ services:
       timeout: 3s
       retries: 20
       start_period: 30s
+    restart: unless-stopped
+
+  # ── Risk monitor context (raksha-risk-dashboard/) ──────────────────
+  # Standalone DeFi risk monitoring dashboard for the KAST Earn Program.
+  # Owns raksha_risk_monitor. DB + schema are created by 00-bootstrap.sh
+  # (same pattern as every other bounded context). UI proxies /api/* to
+  # risk-monitor-api via nginx.
+
+  risk-monitor-api:
+    build:
+      context: ../../../raksha-risk-dashboard
+      dockerfile: apps/risk-monitor-api/Dockerfile
+    environment:
+      RISK_MONITOR_LISTEN_ADDR: ":8088"
+      RISK_MONITOR_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_risk_monitor?sslmode=disable
+      RISK_MONITOR_PEER_TOKEN: ${PEER_TOKEN_RISK_MONITOR:-dev-peer-token-risk-monitor}
+      RISK_MONITOR_KAST_TENANT_UUID: ${RISK_MONITOR_KAST_TENANT_UUID:-00000000-0000-0000-0000-000000000001}
+      # Depeg signal data is read from rule-control-api (engine bounded context).
+      # The engine Rust runtime writes depeg_state signals via the internal batch
+      # endpoint; this service reads them — no direct DB cross-reads.
+      RISK_MONITOR_RULE_CONTROL_API_URL: http://rule-control-api:8082
+      RISK_MONITOR_RULE_CONTROL_PEER_TOKEN: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine}
+      RISK_MONITOR_ALERT_API_URL: http://alert-control-api:8083
+      RISK_MONITOR_CACHE_REFRESH_INTERVAL: "15s"
+      RISK_MONITOR_DASHBOARD_URL: http://localhost:3003
+    ports:
+      - "8088:8088"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rule-control-api:
+        condition: service_healthy
+      alert-control-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8088/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
+  risk-monitor-ui:
+    build:
+      context: ../../../raksha-risk-dashboard/apps/risk-monitor-ui
+      dockerfile: Dockerfile
+    environment:
+      RISK_MONITOR_PEER_TOKEN: ${PEER_TOKEN_RISK_MONITOR:-dev-peer-token-risk-monitor}
+    ports:
+      - "3003:3003"
+    depends_on:
+      risk-monitor-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3003 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
     restart: unless-stopped
 
 volumes:

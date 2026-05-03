@@ -23,6 +23,7 @@ on:
         type: choice
         options:
           - all
+          - risk-dashboard
           - ai-agents
           - simulation
           - ingestion
