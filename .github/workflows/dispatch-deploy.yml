@@ -1,13 +1,15 @@
 # Single dispatch entry point: pick one or more repo-aligned components +
 # environment + optional image-tag override. This workflow looks up the
-# catalog, then triggers each owning repo's deploy.yml in rollout_order.
+# catalog, then triggers each owning repo's deploy.yml as one matrix job per
+# selected component.
 # Use this when you want to roll selected repos instead of running each repo's
 # deploy by hand.
 #
 # Each consumer repo's deploy.yml MUST accept three workflow_dispatch inputs:
 # environment (string), image_tag (string; optional override), build_image
 # (boolean). Triggering uses GitHub's REST API via gh. This workflow waits for
-# every downstream deploy run and fails if any selected repo fails.
+# every downstream deploy run and fails if any selected repo fails. Matrix jobs
+# use fail-fast=false so all selected repos report their own result.
 
 name: Dispatch deploy (components)
 
@@ -23,7 +25,7 @@ on:
           - stage
           - prod
       deploy_all:
-        description: Deploy all repos in catalog rollout order
+        description: Deploy all repos in the catalog as parallel component jobs
         required: true
         type: boolean
         default: false
@@ -72,9 +74,11 @@ permissions:
   contents: read
 
 jobs:
-  dispatch:
-    name: Dispatch to consumer repos
+  prepare:
+    name: Prepare component list
     runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.repos.outputs.repos }}
 
     steps:
       - name: Checkout deployments
@@ -129,102 +133,275 @@ jobs:
             exit 1
           fi
 
-      - name: Trigger and wait for each consumer repo's deploy.yml
+      - name: Selected components
+        run: |
+          echo "Selected repos: ${{ steps.repos.outputs.repos }}"
+          {
+            echo "## Selected component deploys"
+            echo
+            echo '${{ steps.repos.outputs.repos }}' | python3 -c 'import json,sys; [print(f"- `{repo}`") for repo in json.load(sys.stdin)]'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  dispatch-component:
+    name: Dispatch ${{ matrix.repo }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: ${{ fromJson(needs.prepare.outputs.repos) }}
+
+    steps:
+      - name: Trigger downstream deploy
+        id: dispatch
         env:
           GH_TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
         run: |
-          set -eu
+          set -euo pipefail
 
-          wait_for_deploy() {
-            repo="$1"
-            marker="$2"
-            echo "Waiting for raksha-labs/$repo deploy run created after $marker"
+          repo='${{ matrix.repo }}'
+          mkdir -p dispatch-results
 
-            run_id=""
-            for _ in $(seq 1 30); do
-              run_id=$(
-                gh run list \
-                  --repo "raksha-labs/$repo" \
-                  --workflow deploy.yml \
-                  --branch master \
-                  --event workflow_dispatch \
-                  --json databaseId,createdAt \
-                  --limit 20 \
-                | MARKER="$marker" python3 -c '
-          import datetime as dt
-          import json
-          import os
-          import sys
-
-          marker = dt.datetime.fromisoformat(os.environ["MARKER"].replace("Z", "+00:00"))
-          runs = json.load(sys.stdin)
-          candidates = []
-          for run in runs:
-              created = dt.datetime.fromisoformat(run["createdAt"].replace("Z", "+00:00"))
-              if created >= marker:
-                  candidates.append((created, run["databaseId"]))
-          if candidates:
-              candidates.sort()
-              print(candidates[0][1])
-          '
-              )
-              if [ -n "$run_id" ]; then
-                break
-              fi
-              sleep 10
-            done
-
-            if [ -z "$run_id" ]; then
-              echo "::error::Timed out waiting for raksha-labs/$repo deploy run to appear."
-              printf '| `%s` | not found | - | Timed out waiting for workflow run |\n' "$repo" >> "$GITHUB_STEP_SUMMARY"
-              exit 1
-            fi
-
-            while true; do
-              run_info=$(gh api "repos/raksha-labs/$repo/actions/runs/$run_id")
-              parsed=$(printf '%s' "$run_info" | python3 -c '
+          write_dispatch_result() {
+            conclusion="$1"
+            run_id="${2:-}"
+            url="${3:-}"
+            notes="${4:-}"
+            python3 - "$repo" "$conclusion" "$run_id" "$url" "$notes" > "dispatch-results/$repo.json" <<'PY'
           import json
           import sys
 
-          run = json.load(sys.stdin)
-          print(run["status"], run.get("conclusion") or "none", run["html_url"])
-          ')
-              set -- $parsed
-              status="$1"
-              conclusion="$2"
-              url="$3"
-              echo "raksha-labs/$repo deploy run $run_id: $status/$conclusion"
-
-              if [ "$status" = "completed" ]; then
-                if [ "$conclusion" = "success" ]; then
-                  printf '| `%s` | success | [run](%s) | - |\n' "$repo" "$url" >> "$GITHUB_STEP_SUMMARY"
-                  break
-                fi
-                printf '| `%s` | %s | [run](%s) | Downstream deploy failed |\n' "$repo" "$conclusion" "$url" >> "$GITHUB_STEP_SUMMARY"
-                echo "::error::Deploy failed for raksha-labs/$repo: $url"
-                exit 1
-              fi
-              sleep 30
-            done
+          repo, conclusion, run_id, url, notes = sys.argv[1:6]
+          print(json.dumps({
+              "repo": repo,
+              "conclusion": conclusion,
+              "run_id": run_id,
+              "url": url,
+              "notes": notes,
+          }))
+          PY
           }
 
-          repos='${{ steps.repos.outputs.repos }}'
-          echo "==> dispatching deploy to: $repos"
+          marker="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Dispatching raksha-labs/$repo deploy.yml after $marker"
+
+          if ! gh workflow run deploy.yml \
+            --repo "raksha-labs/$repo" \
+            --ref master \
+            -f environment='${{ inputs.environment }}' \
+            -f image_tag='${{ inputs.image_tag }}' \
+            -f build_image='${{ inputs.build_image }}'; then
+            write_dispatch_result "dispatch_failed" "" "" "Failed to trigger downstream deploy workflow"
+            exit 1
+          fi
+
+          run_id=""
+          run_url=""
+          for _ in $(seq 1 30); do
+            if ! run_json=$(
+              gh run list \
+                --repo "raksha-labs/$repo" \
+                --workflow deploy.yml \
+                --branch master \
+                --event workflow_dispatch \
+                --json databaseId,createdAt,url \
+                --limit 20
+            ); then
+              echo "::warning::Failed to list deploy runs for raksha-labs/$repo; retrying."
+              sleep 10
+              continue
+            fi
+            run_id=$(printf '%s' "$run_json" | jq -r --arg marker "$marker" '[.[] | select(.createdAt >= $marker)] | sort_by(.createdAt) | .[0].databaseId // ""')
+            run_url=$(printf '%s' "$run_json" | jq -r --arg marker "$marker" '[.[] | select(.createdAt >= $marker)] | sort_by(.createdAt) | .[0].url // ""')
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 10
+          done
+
+          if [ -z "$run_id" ]; then
+            echo "::error::Timed out waiting for raksha-labs/$repo deploy run to appear."
+            write_dispatch_result "not_found" "" "" "Timed out waiting for downstream workflow run"
+            exit 1
+          fi
+
+          write_dispatch_result "dispatched" "$run_id" "$run_url" ""
           {
-            echo "## Component deploy results"
+            echo "## $repo dispatch result"
             echo
-            echo "| Repo | Result | Run | Notes |"
-            echo "| --- | --- | --- | --- |"
+            echo "| Repo | Result | Run |"
+            echo "| --- | --- | --- |"
+            echo "| \`$repo\` | dispatched | [run]($run_url) |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          for repo in $(echo "$repos" | python3 -c 'import json,sys; print(" ".join(json.load(sys.stdin)))'); do
-            echo "→ raksha-labs/$repo"
-            marker="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            gh workflow run deploy.yml \
-              --repo "raksha-labs/$repo" \
-              --ref master \
-              -f environment='${{ inputs.environment }}' \
-              -f image_tag='${{ inputs.image_tag }}' \
-              -f build_image='${{ inputs.build_image }}'
-            wait_for_deploy "$repo" "$marker"
+      - name: Upload dispatch result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatch-result-${{ matrix.repo }}
+          path: dispatch-results/${{ matrix.repo }}.json
+          if-no-files-found: warn
+
+  wait-component:
+    name: Wait ${{ matrix.repo }}
+    needs:
+      - prepare
+      - dispatch-component
+    if: ${{ always() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: ${{ fromJson(needs.prepare.outputs.repos) }}
+
+    steps:
+      - name: Download dispatch result
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: dispatch-result-${{ matrix.repo }}
+          path: dispatch-results
+
+      - name: Wait for downstream deploy
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          repo='${{ matrix.repo }}'
+          dispatch_file="dispatch-results/$repo.json"
+          mkdir -p component-results
+
+          write_result() {
+            conclusion="$1"
+            url="${2:-}"
+            notes="${3:-}"
+            python3 - "$repo" "$conclusion" "$url" "$notes" > "component-results/$repo.json" <<'PY'
+          import json
+          import sys
+
+          repo, conclusion, url, notes = sys.argv[1:5]
+          print(json.dumps({
+              "repo": repo,
+              "conclusion": conclusion,
+              "url": url,
+              "notes": notes,
+          }))
+          PY
+          }
+
+          if [ ! -f "$dispatch_file" ]; then
+            echo "::error::Missing dispatch result for raksha-labs/$repo."
+            write_result "dispatch_missing" "" "No dispatch artifact was produced"
+            exit 1
+          fi
+
+          dispatch_conclusion=$(jq -r '.conclusion' "$dispatch_file")
+          run_id=$(jq -r '.run_id // ""' "$dispatch_file")
+          run_url=$(jq -r '.url // ""' "$dispatch_file")
+          dispatch_notes=$(jq -r '.notes // ""' "$dispatch_file")
+
+          if [ "$dispatch_conclusion" != "dispatched" ]; then
+            echo "::error::Deploy dispatch did not succeed for raksha-labs/$repo: $dispatch_conclusion"
+            write_result "$dispatch_conclusion" "$run_url" "$dispatch_notes"
+            exit 1
+          fi
+
+          echo "Waiting for raksha-labs/$repo deploy run $run_id"
+          for _ in $(seq 1 240); do
+            if ! run_info=$(gh api "repos/raksha-labs/$repo/actions/runs/$run_id"); then
+              echo "::warning::Failed to read deploy run $run_id for raksha-labs/$repo; retrying."
+              sleep 30
+              continue
+            fi
+            status=$(printf '%s' "$run_info" | jq -r '.status')
+            conclusion=$(printf '%s' "$run_info" | jq -r '.conclusion // "none"')
+            run_url=$(printf '%s' "$run_info" | jq -r '.html_url')
+
+            echo "raksha-labs/$repo deploy run $run_id: $status/$conclusion"
+
+            if [ "$status" = "completed" ]; then
+              write_result "$conclusion" "$run_url" ""
+              {
+                echo "## $repo deploy result"
+                echo
+                echo "| Repo | Result | Run |"
+                echo "| --- | --- | --- |"
+                echo "| \`$repo\` | $conclusion | [run]($run_url) |"
+              } >> "$GITHUB_STEP_SUMMARY"
+
+              if [ "$conclusion" != "success" ]; then
+                echo "::error::Deploy failed for raksha-labs/$repo: $run_url"
+                exit 1
+              fi
+              exit 0
+            fi
+
+            sleep 30
           done
+
+          echo "::error::Timed out waiting for raksha-labs/$repo deploy run $run_id to complete."
+          write_result "timeout" "$run_url" "Timed out waiting for downstream workflow completion"
+          exit 1
+
+      - name: Upload component result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-result-${{ matrix.repo }}
+          path: component-results/${{ matrix.repo }}.json
+          if-no-files-found: warn
+
+  summary:
+    name: Deployment summary
+    needs:
+      - prepare
+      - dispatch-component
+      - wait-component
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download component results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: deploy-result-*
+          path: component-results
+          merge-multiple: true
+
+      - name: Publish summary
+        run: |
+          set -eu
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          print("## Component deploy results")
+          print()
+          print("| Repo | Result | Run | Notes |")
+          print("| --- | --- | --- | --- |")
+
+          results = []
+          for path in sorted(Path("component-results").glob("*.json")):
+              with path.open() as fh:
+                  results.append(json.load(fh))
+
+          if not results:
+              print("| - | no results | - | No component result artifacts were produced |")
+              raise SystemExit(1)
+
+          failed = False
+          for result in results:
+              repo = result["repo"]
+              conclusion = result["conclusion"]
+              url = result.get("url") or ""
+              notes = result.get("notes") or "-"
+              run = f"[run]({url})" if url else "-"
+              print(f"| `{repo}` | {conclusion} | {run} | {notes} |")
+              if conclusion != "success":
+                  failed = True
+
+          if failed:
+              raise SystemExit(1)
+          PY
