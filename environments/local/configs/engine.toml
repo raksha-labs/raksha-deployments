@@ -10,9 +10,9 @@ stream_key = "raksha:events.00000000-0000-0000-0000-ffffffffffff.unified"
 stream_keys = ["raksha:events.00000000-0000-0000-0000-ffffffffffff.unified"]
 group_name = "raksha-engine"
 consumer_name = "worker-0"
-batch_size = 1
+batch_size = 50
 block_ms = 2000
-max_len = 100000
+max_len = 25000
 
 [sink]
 connector_type = "redis"
@@ -26,7 +26,7 @@ max_len = 10000
 default_ttl_secs = 300
 eviction_interval_ms = 1000
 max_events_per_key = 1000
-max_total_live_events = 100000
+max_total_live_events = 25000
 max_partitions = 10000
 
 [engine]

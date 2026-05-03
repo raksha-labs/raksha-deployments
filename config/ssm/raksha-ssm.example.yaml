@@ -24,13 +24,15 @@
 ingestion-gateway:
   static:
     REDIS_URL: "redis://raksha-redis-dev.example.cache.amazonaws.com:6379"
-    LOG_LEVEL: "info"
+    ARCHIVE_BUCKET: "raksha-dev-events"
+    RUST_LOG: "error"
+    LOG_LEVEL: "error"
   secret: {}
 
 stream-control-api:
   static:
     DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_gateway"
-    LOG_LEVEL: "info"
+    LOG_LEVEL: "error"
   secret:
     DATABASE_PASSWORD: "REPLACE_ME"
 
@@ -40,14 +42,15 @@ engine:
   static:
     DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_engine"
     REDIS_URL: "redis://raksha-redis-dev.example.cache.amazonaws.com:6379"
-    LOG_LEVEL: "info"
+    RUST_LOG: "error"
+    LOG_LEVEL: "error"
   secret:
     DATABASE_PASSWORD: "REPLACE_ME"
 
 rule-control-api:
   static:
     RULE_CONTROL_DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_engine"
-    LOG_LEVEL: "info"
+    LOG_LEVEL: "error"
   secret:
     RULE_CONTROL_DATABASE_PASSWORD: "REPLACE_ME"
     RULE_CONTROL_INTERNAL_PEER_TOKEN: "REPLACE_ME"
@@ -58,14 +61,15 @@ notifier-runtime:
   static:
     DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_notifier"
     REDIS_URL: "redis://raksha-redis-dev.example.cache.amazonaws.com:6379"
-    LOG_LEVEL: "info"
+    RUST_LOG: "error"
+    LOG_LEVEL: "error"
   secret:
     DATABASE_PASSWORD: "REPLACE_ME"
 
 alert-control-api:
   static:
     ALERT_CONTROL_DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_notifier"
-    LOG_LEVEL: "info"
+    LOG_LEVEL: "error"
   secret:
     ALERT_CONTROL_DATABASE_PASSWORD: "REPLACE_ME"
     ALERT_CONTROL_INTERNAL_PEER_TOKEN: "REPLACE_ME"
@@ -75,6 +79,7 @@ alert-control-api:
 portal-backend:
   static:
     DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_portal"
+    LOG_LEVEL: "error"
     ENGINE_BASE_URL: "http://raksha-rule-control-api-dev.internal:8082"
     NOTIFIER_BASE_URL: "http://raksha-alert-control-api-dev.internal:8083"
     STREAM_CONTROL_BASE_URL: "http://raksha-stream-control-api-dev.internal:8081"
@@ -104,6 +109,7 @@ admin:
 simlab-api:
   static:
     DATABASE_URL: "postgres://raksha@raksha-pg-dev.example.rds.amazonaws.com:5432/raksha_simlab"
+    LOG_LEVEL: "error"
     RULE_CONTROL_URL: "http://raksha-rule-control-api-dev.internal:8082"
     NOTIFIER_URL: "http://raksha-alert-control-api-dev.internal:8083"
     STREAM_CONTROL_URL: "http://raksha-stream-control-api-dev.internal:8081"
@@ -114,6 +120,7 @@ simlab-api:
 
 agent-api:
   static:
+    RAKSHA_LOG_LEVEL: "error"
     SIMLAB_BASE_URL: "http://raksha-simlab-api-dev.internal:8084"
     RULE_CONTROL_BASE_URL: "http://raksha-rule-control-api-dev.internal:8082"
     EGRESS_ALLOWLIST: "api.anthropic.com"

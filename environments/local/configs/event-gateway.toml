@@ -43,8 +43,6 @@ http_poll_interval_secs = 5
 enabled = true
 bucket = "raksha-events"
 prefix = "events"
-batch_max_events = 500
-batch_max_age_ms = 10000
 channel_capacity = 2000
 
 [hot_ttl]
