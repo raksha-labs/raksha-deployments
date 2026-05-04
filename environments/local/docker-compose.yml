@@ -536,6 +536,26 @@ services:
   # (same pattern as every other bounded context). UI proxies /api/* to
   # risk-monitor-api via nginx.
 
+  risk-monitor-db-init:
+    image: postgres:16-alpine
+    environment:
+      PGPASSWORD: raksha
+    volumes:
+      - ../../../raksha-risk-dashboard/apps/risk-monitor-api/db/control/schema.sql:/schemas/risk-monitor/schema.sql:ro
+    entrypoint: >
+      /bin/sh -c "
+      set -e &&
+      until pg_isready -h postgres -U raksha -d postgres; do sleep 1; done &&
+      psql -h postgres -U raksha -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname = 'raksha_risk_monitor'\" | grep -q 1 ||
+      psql -h postgres -U raksha -d postgres -c \"CREATE DATABASE raksha_risk_monitor OWNER raksha\" &&
+      psql -h postgres -U raksha -d raksha_risk_monitor -f /schemas/risk-monitor/schema.sql &&
+      echo 'risk-monitor db init complete'
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   risk-monitor-api:
     build:
       context: ../../../raksha-risk-dashboard
@@ -557,11 +577,12 @@ services:
       RISK_MONITOR_ALERT_CONTROL_PEER_TOKEN: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway}
       RISK_MONITOR_CACHE_REFRESH_INTERVAL: "30s"
       RISK_MONITOR_DASHBOARD_URL: http://localhost:3003
+      LOG_LEVEL: info
     ports:
       - "8088:8088"
     depends_on:
-      postgres:
-        condition: service_healthy
+      risk-monitor-db-init:
+        condition: service_completed_successfully
       rule-control-api:
         condition: service_healthy
       alert-control-api:
@@ -578,6 +599,8 @@ services:
     build:
       context: ../../../raksha-risk-dashboard/apps/risk-monitor-ui
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
     environment:
       RISK_MONITOR_PEER_TOKEN: ${PEER_TOKEN_RISK_MONITOR:-dev-peer-token-risk-monitor}
     ports:
