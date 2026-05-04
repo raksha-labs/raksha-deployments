@@ -135,9 +135,12 @@ INSERT INTO tenants.tenant_members (tenant_id, user_id, role, accepted_at) VALUE
 ON CONFLICT (tenant_id, user_id) DO UPDATE SET role = EXCLUDED.role;
 
 -- ─── KAST tenant (pilot client) ───────────────────────────────────────────
-INSERT INTO tenants.tenants (id, display_name, slug, plan_id)
-VALUES ('20000000-0000-0000-0000-000000000001', 'KAST', 'kast', 'pro')
-ON CONFLICT (id) DO UPDATE SET display_name = 'KAST', plan_id = 'pro';
+INSERT INTO tenants.tenants (id, display_name, slug, plan_id, default_redirect)
+VALUES ('20000000-0000-0000-0000-000000000001', 'KAST', 'kast', 'pro', 'dashboard')
+ON CONFLICT (id) DO UPDATE SET
+  display_name = 'KAST',
+  plan_id = 'pro',
+  default_redirect = 'dashboard';
 
 INSERT INTO iam.users (id, email, display_name, is_platform_admin) VALUES
   ('00000000-0000-0000-0000-000000000010', 'kast.admin@rakshalabs.io',  'KAST Admin',  false),
