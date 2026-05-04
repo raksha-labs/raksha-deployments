@@ -76,7 +76,9 @@ CMD ["node", "dist/apps/backend/src/main.js"]
 
 FROM deps AS portal-build
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
+ARG NEXT_PUBLIC_RISK_DASHBOARD_URL=http://localhost:3003
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+ENV NEXT_PUBLIC_RISK_DASHBOARD_URL=${NEXT_PUBLIC_RISK_DASHBOARD_URL}
 RUN pnpm --filter @raksha/portal build
 
 FROM node:20-bookworm-slim AS portal
@@ -92,6 +94,7 @@ COPY --from=portal-build /build/raksha-portal /app/raksha-portal
 
 EXPOSE 3000
 ENV PORT=3000
+ENV NEXT_PUBLIC_RISK_DASHBOARD_URL=http://localhost:3003
 WORKDIR /app/raksha-portal/apps/portal
 CMD ["sh", "-c", "cd /app/raksha-portal/apps/portal && npx next start -p 3000"]
 
