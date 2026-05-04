@@ -577,6 +577,8 @@ services:
       RISK_MONITOR_RULE_CONTROL_PEER_TOKEN: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine}
       RISK_MONITOR_ALERT_API_URL: http://alert-control-api:8083
       RISK_MONITOR_ALERT_CONTROL_PEER_TOKEN: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway}
+      RISK_MONITOR_STREAM_CONTROL_API_URL: http://stream-control-api:8081
+      RISK_MONITOR_STREAM_CONTROL_PEER_TOKEN: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway}
       RISK_MONITOR_CACHE_REFRESH_INTERVAL: "30s"
       RISK_MONITOR_DASHBOARD_URL: http://localhost:3003
       LOG_LEVEL: info
@@ -588,6 +590,8 @@ services:
       rule-control-api:
         condition: service_healthy
       alert-control-api:
+        condition: service_healthy
+      stream-control-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8088/healthz >/dev/null || exit 1"]
