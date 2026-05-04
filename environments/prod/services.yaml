@@ -1,3 +1,7 @@
+# Image tags in this file MUST be SHA-prefixed (e.g., sha256-abc123...@sha256:...)
+# or a unique immutable semver tag — never use 'latest', 'prod-approved', or any
+# mutable floating tag. Mutable tags make deploys non-deterministic.
+# Update tags using: ./scripts/promote-service.sh <service> <sha-tag>
 version: 1
 environment: prod
 services:

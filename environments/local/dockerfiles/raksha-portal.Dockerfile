@@ -39,6 +39,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 # Compile @raksha/contracts once in the shared deps stage. The package now
 # publishes dist/*.js via package.json `exports`, so every downstream app
 # (backend at runtime, Next.js during build) resolves through it.
+RUN pnpm --filter @raksha/domain-types build
 RUN pnpm --filter @raksha/contracts build
 
 # ───────────────────────────── backend (NestJS) ─────────────────────────────

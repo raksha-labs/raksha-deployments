@@ -6,7 +6,7 @@ instance_id = "notifier-local"
 shutdown_timeout_secs = 15
 
 [redis]
-url = "redis://redis:6379"
+url = "redis://:raksha-local-redis-secret@redis:6379"
 consumer_stream = "raksha:alerts:outbound"
 consumer_group = "notifier-gateway"
 consumer_name = "notifier-0"
@@ -57,9 +57,6 @@ half_open_max_requests = 1
 [email]
 ses_region = "us-east-1"
 from_address = "alerts@rakshalabs.io"
-
-[simulation]
-workbench_service_url = "http://workbench-services:8010"
 
 [portal]
 url = "http://localhost:3000"

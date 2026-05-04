@@ -5,7 +5,7 @@
 connector_type = "redis"
 
 [source.redis]
-url = "redis://redis:6379"
+url = "redis://:raksha-local-redis-secret@redis:6379"
 stream_key = "raksha:events.00000000-0000-0000-0000-ffffffffffff.unified"
 stream_keys = ["raksha:events.00000000-0000-0000-0000-ffffffffffff.unified"]
 group_name = "raksha-engine"
@@ -18,7 +18,7 @@ max_len = 25000
 connector_type = "redis"
 
 [sink.redis]
-url = "redis://redis:6379"
+url = "redis://:raksha-local-redis-secret@redis:6379"
 stream_key = "raksha:alerts:outbound"
 max_len = 10000
 

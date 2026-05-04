@@ -74,13 +74,13 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: redis-server --save ""
+    command: redis-server --save "" --requirepass raksha-local-redis-secret
     ports:
       - "6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "raksha-local-redis-secret", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -155,9 +155,9 @@ services:
       RAKSHA_CONFIG_SOURCE__PEER_TOKEN: dev-peer-token-engine
       RAKSHA_CONFIG_SOURCE__VERSION_STORE_PATH: /data/version-store
       RAKSHA_CONFIG_SOURCE__WATCH_TIMEOUT_SECS: "25"
-      RAKSHA_SOURCE__REDIS__URL: redis://redis:6379
+      RAKSHA_SOURCE__REDIS__URL: redis://default:raksha-local-redis-secret@redis:6379
       RAKSHA_SOURCE__REDIS__STREAM_KEYS: "raksha:events:inbound"
-      RAKSHA_SINK__REDIS__URL: redis://redis:6379
+      RAKSHA_SINK__REDIS__URL: redis://default:raksha-local-redis-secret@redis:6379
     volumes:
       - ./configs/engine.toml:/app/config.toml:ro
       - engine-data:/data
@@ -208,7 +208,7 @@ services:
     environment:
       NODE_ENV: development
       RUST_LOG: info
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://default:raksha-local-redis-secret@redis:6379
       NOTIFIER_CONFIG_SOURCE_ENDPOINT: http://alert-control-api:8083
       NOTIFIER_TENANT_IDS: "00000000-0000-0000-0000-ffffffffffff,00000000-0000-0000-0000-000000000001"
       ALERT_CONTROL_PEER_TOKEN: dev-peer-token-notifier-gateway
@@ -253,12 +253,14 @@ services:
       # tenants.tenant_api_keys is portal-owned; capture reads it from there.
       STREAM_CONTROL_TENANTS_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_portal?sslmode=disable
       STREAM_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-event-gateway
-      STREAM_CONTROL_SIM_REDIS_URL: redis://redis:6379
+      STREAM_CONTROL_SIM_REDIS_URL: redis://default:raksha-local-redis-secret@redis:6379
       STREAM_CONTROL_SIM_SHARED_ROUTE_KEY: raksha:events:inbound
     ports:
       - "8087:8081"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/healthz"]

@@ -17,7 +17,7 @@ backend = "redis"
 route_prefix = "raksha"
 
 [transport.redis]
-url = "redis://redis:6379"
+url = "redis://:raksha-local-redis-secret@redis:6379"
 
 [health]
 enabled = true
