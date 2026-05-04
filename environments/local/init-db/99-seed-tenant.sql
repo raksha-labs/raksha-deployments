@@ -147,6 +147,40 @@ INSERT INTO iam.users (id, email, display_name, is_platform_admin) VALUES
   ('00000000-0000-0000-0000-000000000011', 'kast.viewer@rakshalabs.io', 'KAST Viewer', false)
 ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name;
 
+-- Local compose uses password-backed dev users so the admin Local Users
+-- lifecycle has real rows to manage. Password for all seeded local users:
+-- "raksha-dev".
+UPDATE iam.users
+   SET password_hash = 'scrypt$6c6f63616c2d6465762d736565642d3031$7b037a0fa520394a730fa2aaa382071962446c2397be796eeaba29bb04dff91595aa8087f7f5b49a8389040ab0727aba9e860a3dd1593747f3c88ecf0c749a35',
+       must_change_password = false,
+       updated_at = now()
+ WHERE email IN (
+   'dev@raksha.local',
+   'editor@raksha.local',
+   'admin@local-dev.local',
+   'viewer@local-dev.local',
+   'kast.admin@rakshalabs.io',
+   'kast.viewer@rakshalabs.io'
+ );
+
+INSERT INTO iam.user_identities (subject, user_id, provider, email, display_name)
+SELECT 'local:' || email::text, id, 'local', email, display_name
+  FROM iam.users
+ WHERE email IN (
+   'dev@raksha.local',
+   'editor@raksha.local',
+   'admin@local-dev.local',
+   'viewer@local-dev.local',
+   'kast.admin@rakshalabs.io',
+   'kast.viewer@rakshalabs.io'
+ )
+ON CONFLICT (subject) DO UPDATE SET
+  user_id = EXCLUDED.user_id,
+  provider = 'local',
+  email = EXCLUDED.email,
+  display_name = EXCLUDED.display_name,
+  updated_at = now();
+
 INSERT INTO tenants.tenant_members (tenant_id, user_id, role, accepted_at) VALUES
   ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000010', 'admin',  now()),
   ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', 'viewer', now())
