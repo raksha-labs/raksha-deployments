@@ -609,8 +609,8 @@ services:
 
   risk-monitor-ui:
     build:
-      context: ../../../raksha-risk-dashboard/apps/risk-monitor-ui
-      dockerfile: Dockerfile
+      context: ../../../raksha-risk-dashboard/apps
+      dockerfile: risk-monitor-ui/Dockerfile
       args:
         VITE_API_BASE_URL: /api/v1
         VITE_MONITOR_DASHBOARD_URL: http://localhost:3000/alerts
