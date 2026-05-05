@@ -69,3 +69,9 @@ services:
     desired_count: 1
     strategy: rolling
     config_profile: stage
+
+  risk-monitor-api:
+    image_tag: stage-approved
+    desired_count: 1
+    strategy: rolling
+    config_profile: stage
