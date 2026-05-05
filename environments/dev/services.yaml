@@ -72,3 +72,9 @@ services:
     desired_count: 1
     strategy: rolling
     config_profile: dev
+
+  risk-monitor-ui:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
