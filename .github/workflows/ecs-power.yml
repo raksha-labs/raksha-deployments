@@ -66,7 +66,7 @@ jobs:
           control_cluster="raksha-${ENVIRONMENT}-control"
 
           live_services="ingestion-gateway engine notifier-runtime"
-          control_services="portal admin portal-backend stream-control-api rule-control-api alert-control-api simlab-api agent-api"
+          control_services="portal admin portal-backend stream-control-api rule-control-api alert-control-api simlab-api agent-api risk-monitor-api risk-monitor-ui"
 
           case "$SERVICE_GROUP" in
             live-path)
