@@ -9,7 +9,8 @@
 #   1. raksha_portal   — platform (NestJS backend) — /schemas/portal/*.sql
 #   2. raksha_engine   — detection                 — /schemas/engine/schema.sql
 #   3. raksha_notifier — delivery                  — /schemas/notifier/schema.sql
-#   4. raksha_gateway  — ingestion                 — /schemas/gateway/schema.sql
+#   4. raksha_gateway  — ingestion (control + ops) — /schemas/gateway-control/schema.sql
+#                                                     /schemas/gateway/schema.sql
 #   5. raksha_simlab   — simulation                — /schemas/simlab/schema.sql
 
 set -euo pipefail
@@ -66,11 +67,6 @@ create_db "raksha_gateway"
 load_schema_file "raksha_gateway" "/schemas/gateway-control/schema.sql"
 load_schema_file "raksha_gateway" "/schemas/gateway/schema.sql"
 
-# Raw-envelope landing DB: same schema, separate database so hot-tier
-# retention (7d in local) can be wiped without touching gateway metadata.
-create_db "raksha_gateway_raw"
-load_schema_file "raksha_gateway_raw" "/schemas/gateway/schema.sql"
-
 create_db "raksha_simlab"
 load_schema_file "raksha_simlab" "/schemas/simlab/schema.sql"
 
@@ -102,10 +98,9 @@ psql_cmd -d raksha_engine -c "ALTER DEFAULT PRIVILEGES IN SCHEMA engine GRANT SE
 psql_cmd -d raksha_engine -c "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA engine TO rule_control_api;" 2>/dev/null || true
 psql_cmd -d raksha_engine -c "ALTER DEFAULT PRIVILEGES IN SCHEMA engine GRANT USAGE, SELECT ON SEQUENCES TO rule_control_api;" 2>/dev/null || true
 
-# stream_control_api → raksha_gateway (control.* schema) + raksha_gateway_raw
+# stream_control_api → raksha_gateway (control.* schema)
 psql_cmd -d postgres -c "CREATE ROLE stream_control_api LOGIN PASSWORD 'raksha' NOSUPERUSER NOCREATEDB NOCREATEROLE;" 2>/dev/null || true
 psql_cmd -d postgres -c "GRANT CONNECT ON DATABASE raksha_gateway TO stream_control_api;" 2>/dev/null || true
-psql_cmd -d postgres -c "GRANT CONNECT ON DATABASE raksha_gateway_raw TO stream_control_api;" 2>/dev/null || true
 psql_cmd -d raksha_gateway -c "GRANT USAGE ON SCHEMA control TO stream_control_api;" 2>/dev/null || true
 psql_cmd -d raksha_gateway -c "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA control TO stream_control_api;" 2>/dev/null || true
 psql_cmd -d raksha_gateway -c "ALTER DEFAULT PRIVILEGES IN SCHEMA control GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO stream_control_api;" 2>/dev/null || true
