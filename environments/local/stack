@@ -21,6 +21,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
 COMPOSE="docker compose"
+COMPOSE_WITH_MONITORING="docker compose --profile monitoring"
 QA_FRAMEWORK_DIR="${SCRIPT_DIR}/../../../raksha-qa-framework"
 QA_COMPOSE="docker compose -f ${QA_FRAMEWORK_DIR}/docker-compose.qa.yml --project-directory ${QA_FRAMEWORK_DIR}"
 
@@ -124,10 +125,10 @@ cmd_down() {
   done
   if $wipe; then
     echo "==> stopping stack and wiping volumes (fresh DB on next up)"
-    $COMPOSE down -v
+    $COMPOSE_WITH_MONITORING down --remove-orphans -v
   else
     echo "==> stopping stack (volumes preserved — use ./stack down -v to wipe)"
-    $COMPOSE down
+    $COMPOSE_WITH_MONITORING down --remove-orphans
   fi
 }
 
@@ -158,7 +159,7 @@ cmd_errors() {
 cmd_status() {
   echo "==> service status"
   # Prints the health of each non-oneshot service.
-  for svc in postgres redis minio rule-control-api alert-control-api stream-control-api simlab-api agent-api engine notifier-runtime ingestion-gateway portal-backend portal admin; do
+  for svc in postgres redis minio rule-control-api alert-control-api stream-control-api simlab-api agent-api engine notifier-runtime ingestion-gateway portal-backend portal admin prometheus grafana; do
     local health
     health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "raksha-local-${svc}-1" 2>/dev/null || echo "missing")
     printf "  %-22s %s\n" "$svc" "$health"
