@@ -151,12 +151,12 @@ services:
     environment:
       RUST_LOG: info
       RAKSHA_CONFIG_SOURCE__ENDPOINT: http://rule-control-api:8082
-      RAKSHA_CONFIG_SOURCE__TENANT_IDS: "00000000-0000-0000-0000-ffffffffffff"
+      RAKSHA_CONFIG_SOURCE__TENANT_IDS: "00000000-0000-0000-0000-000000000001,20000000-0000-0000-0000-000000000001"
       RAKSHA_CONFIG_SOURCE__PEER_TOKEN: dev-peer-token-engine
       RAKSHA_CONFIG_SOURCE__VERSION_STORE_PATH: /data/version-store
       RAKSHA_CONFIG_SOURCE__WATCH_TIMEOUT_SECS: "25"
       RAKSHA_SOURCE__REDIS__URL: redis://default:raksha-local-redis-secret@redis:6379
-      RAKSHA_SOURCE__REDIS__STREAM_KEYS: "raksha:events:inbound,raksha:events.00000000-0000-0000-0000-ffffffffffff.unified"
+      RAKSHA_SOURCE__REDIS__STREAM_KEYS: "raksha:events:inbound,raksha:events.00000000-0000-0000-0000-ffffffffffff.unified,raksha:events.00000000-0000-0000-0000-000000000001.unified,raksha:events.20000000-0000-0000-0000-000000000001.unified"
       RAKSHA_SINK__REDIS__URL: redis://default:raksha-local-redis-secret@redis:6379
     volumes:
       - ./configs/engine.toml:/app/config.toml:ro
