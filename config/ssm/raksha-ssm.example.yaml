@@ -27,7 +27,17 @@ ingestion-gateway:
     ARCHIVE_BUCKET: "raksha-dev-events"
     RUST_LOG: "error"
     LOG_LEVEL: "error"
-  secret: {}
+  secret:
+    # Required for rpc_state streams (e.g. stream IDs a7d854f9, 732204d7).
+    # The stream definition_config contains rpc_url: "https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}".
+    # The Terraform resource aws_ssm_parameter.gateway_secret_alchemy_api_key creates
+    # this path with value "REPLACE_ME"; set the real value via:
+    #   aws ssm put-parameter --name /raksha/<env>/ingestion-gateway/secret/ALCHEMY_API_KEY \
+    #     --value "YOUR_KEY" --type SecureString --overwrite
+    ALCHEMY_API_KEY: "REPLACE_ME"
+    # Required for http_poll CoinMarketCap streams (e.g. stream ID 8f59468a).
+    # The stream definition_config has request_headers.X-CMC_PRO_API_KEY: "${COINMARKETCAP_API_KEY}".
+    COINMARKETCAP_API_KEY: "REPLACE_ME"
 
 stream-control-api:
   static:
