@@ -650,11 +650,30 @@ services:
       - engine
       - ingestion-gateway
       - notifier-runtime
+      - redis-exporter
+    restart: unless-stopped
+
+  # redis_exporter: exposes redis_stream_length, memory, and commands/sec
+  # from the local redis instance. Scraped by prometheus on port 9121.
+  # REDIS_EXPORTER_CHECK_STREAMS maps to the raksha:events:inbound and
+  # raksha:alerts:outbound hot-path streams (same as prod ElastiCache).
+  redis-exporter:
+    profiles: [monitoring]
+    image: oliver006/redis_exporter:v1.63.0
+    environment:
+      REDIS_ADDR: "redis://default:raksha-local-redis-secret@redis:6379"
+      REDIS_EXPORTER_CHECK_STREAMS: "raksha:events:inbound,raksha:alerts:outbound"
+      REDIS_EXPORTER_STREAM_GROUPS_COUNT: "true"
+    ports:
+      - "9121:9121"
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   grafana:
     profiles: [monitoring]
-    image: grafana/grafana:10.4.2
+    image: grafana/grafana:10.4.3
     ports:
       - "3100:3000"
     environment:

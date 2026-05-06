@@ -3,17 +3,35 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
+  # --- Rust application metrics ---
   - job_name: raksha-engine
     static_configs:
       - targets: ["engine:9090"]
+        labels:
+          service: engine
     metrics_path: /metrics
 
   - job_name: raksha-ingestion-gateway
     static_configs:
       - targets: ["ingestion-gateway:9090"]
+        labels:
+          service: ingestion-gateway
     metrics_path: /metrics
 
   - job_name: raksha-notifier-gateway
     static_configs:
       - targets: ["notifier-runtime:9090"]
+        labels:
+          service: notifier-gateway
+    metrics_path: /metrics
+
+  # --- Redis / stream backpressure (oliver006/redis_exporter) ---
+  # Exposes redis_stream_length{stream=...} for raksha:events:inbound and
+  # raksha:alerts:outbound, plus redis_memory_used_bytes and
+  # redis_instantaneous_ops_per_sec for the local Redis instance.
+  - job_name: redis-exporter
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+        labels:
+          service: redis
     metrics_path: /metrics
