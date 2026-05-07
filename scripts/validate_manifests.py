@@ -17,7 +17,7 @@ def load_yaml(path: Path) -> dict:
         return yaml.safe_load(handle)
 
 
-def validate_catalog(catalog: dict) -> set[str]:
+def validate_catalog(catalog: dict) -> dict[str, dict]:
     services = catalog.get("services")
     if not isinstance(services, list) or not services:
         raise ValueError("catalog/services.yaml must contain a non-empty 'services' list")
@@ -32,10 +32,10 @@ def validate_catalog(catalog: dict) -> set[str]:
     if duplicates:
         raise ValueError(f"duplicate service names in catalog: {sorted(duplicates)}")
 
-    return set(names)
+    return {str(item["name"]): item for item in services}
 
 
-def validate_environment(environment: str, expected_services: set[str]) -> None:
+def validate_environment(environment: str, service_catalog: dict[str, dict]) -> None:
     path = ROOT / "environments" / environment / "services.yaml"
     data = load_yaml(path)
 
@@ -48,6 +48,7 @@ def validate_environment(environment: str, expected_services: set[str]) -> None:
         raise ValueError(f"{path}: 'services' must be a non-empty mapping")
 
     service_names = set(services.keys())
+    expected_services = set(service_catalog.keys())
     missing = expected_services - service_names
     extra = service_names - expected_services
 
@@ -62,8 +63,15 @@ def validate_environment(environment: str, expected_services: set[str]) -> None:
         for key in ("image_tag", "desired_count", "strategy", "config_profile"):
             if key not in config:
                 raise ValueError(f"{path}: service '{name}' is missing '{key}'")
-        if not isinstance(config["desired_count"], int) or config["desired_count"] < 1:
-            raise ValueError(f"{path}: service '{name}' must have desired_count >= 1")
+        desired_count = config["desired_count"]
+        if not isinstance(desired_count, int):
+            raise ValueError(f"{path}: service '{name}' must have integer desired_count")
+        allow_zero = bool(service_catalog[name].get("allow_desired_count_zero"))
+        minimum_desired_count = 0 if allow_zero else 1
+        if desired_count < minimum_desired_count:
+            raise ValueError(
+                f"{path}: service '{name}' must have desired_count >= {minimum_desired_count}"
+            )
         if config["strategy"] not in ALLOWED_STRATEGIES:
             raise ValueError(
                 f"{path}: service '{name}' has unsupported strategy '{config['strategy']}'"
@@ -77,10 +85,10 @@ def validate_environment(environment: str, expected_services: set[str]) -> None:
 
 def main() -> int:
     catalog = load_yaml(CATALOG_PATH)
-    service_names = validate_catalog(catalog)
+    service_catalog = validate_catalog(catalog)
 
     for environment in ENVIRONMENTS:
-        validate_environment(environment, service_names)
+        validate_environment(environment, service_catalog)
 
     print("Deployment manifests are valid.")
     return 0

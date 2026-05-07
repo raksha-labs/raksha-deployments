@@ -19,7 +19,7 @@ services:
 
   admin:
     image_tag: prod-approved
-    desired_count: 1
+    desired_count: 0
     strategy: rolling
     config_profile: prod
 
@@ -63,13 +63,13 @@ services:
 
   simlab-api:
     image_tag: prod-approved
-    desired_count: 1
+    desired_count: 0
     strategy: rolling
     config_profile: prod
 
   agent-api:
     image_tag: prod-approved
-    desired_count: 1
+    desired_count: 0
     strategy: rolling
     config_profile: prod
 

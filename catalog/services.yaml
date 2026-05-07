@@ -27,6 +27,7 @@ services:
     deploy_group: portal
     rollout_order: 30
     default_strategy: rolling
+    allow_desired_count_zero: true
 
   # ── Detection context (raksha-engine) ────────────────────────────
   - name: rule-control-api
@@ -87,6 +88,7 @@ services:
     deploy_group: simulation
     rollout_order: 100
     default_strategy: rolling
+    allow_desired_count_zero: true
 
   # ── AI agents context (raksha-ai-agents) ─────────────────────────
   - name: agent-api
@@ -96,6 +98,7 @@ services:
     deploy_group: ai-agents
     rollout_order: 110
     default_strategy: rolling
+    allow_desired_count_zero: true
 
   # ── Risk dashboard context (raksha-risk-dashboard) ────────────────
   - name: risk-monitor-api
