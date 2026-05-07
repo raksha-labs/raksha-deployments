@@ -129,7 +129,7 @@ services:
     environment:
       RULE_CONTROL_LISTEN_ADDR: ":8082"
       RULE_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_engine?sslmode=disable
-      RULE_CONTROL_INTERNAL_PEER_TOKEN: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine}
+      RULE_CONTROL_INTERNAL_PEER_TOKEN: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine-local-2026}
       RULE_CONTROL_WATCH_TIMEOUT_SECS: "25"
     ports:
       - "8085:8082"
@@ -152,7 +152,7 @@ services:
       RUST_LOG: info
       RAKSHA_CONFIG_SOURCE__ENDPOINT: http://rule-control-api:8082
       RAKSHA_CONFIG_SOURCE__TENANT_IDS: "00000000-0000-0000-0000-000000000001,20000000-0000-0000-0000-000000000001"
-      RAKSHA_CONFIG_SOURCE__PEER_TOKEN: dev-peer-token-engine
+      RAKSHA_CONFIG_SOURCE__PEER_TOKEN: dev-peer-token-engine-local-2026
       RAKSHA_CONFIG_SOURCE__VERSION_STORE_PATH: /data/version-store
       RAKSHA_CONFIG_SOURCE__WATCH_TIMEOUT_SECS: "25"
       RAKSHA_SOURCE__REDIS__URL: redis://default:raksha-local-redis-secret@redis:6379
@@ -179,7 +179,7 @@ services:
     environment:
       ALERT_CONTROL_LISTEN_ADDR: ":8083"
       ALERT_CONTROL_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_notifier?sslmode=disable
-      ALERT_CONTROL_INTERNAL_PEER_TOKEN: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway}
+      ALERT_CONTROL_INTERNAL_PEER_TOKEN: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway-1}
       ALERT_CONTROL_WATCH_TIMEOUT_SECS: "25"
       # Fixture-rendered receiver test path: alert-control-api proxies test
       # requests with an inline alert payload to notifier-runtime. Internal
@@ -187,7 +187,7 @@ services:
       # port mapping. Token must match NOTIFIER_INTERNAL_HTTP_PEER_TOKEN
       # on the notifier-runtime service.
       NOTIFIER_RUNTIME_INTERNAL_URL: http://notifier-runtime:9094
-      NOTIFIER_RUNTIME_PEER_TOKEN: dev-peer-token-notifier-gateway
+      NOTIFIER_RUNTIME_PEER_TOKEN: dev-peer-token-notifier-gateway-1
     ports:
       - "8086:8083"
     depends_on:
@@ -211,10 +211,10 @@ services:
       REDIS_URL: redis://default:raksha-local-redis-secret@redis:6379
       NOTIFIER_CONFIG_SOURCE_ENDPOINT: http://alert-control-api:8083
       NOTIFIER_TENANT_IDS: "00000000-0000-0000-0000-ffffffffffff,00000000-0000-0000-0000-000000000001,20000000-0000-0000-0000-000000000001"
-      ALERT_CONTROL_PEER_TOKEN: dev-peer-token-notifier-gateway
+      ALERT_CONTROL_PEER_TOKEN: dev-peer-token-notifier-gateway-1
       NOTIFIER_STREAM_CONTROL_URL: http://stream-control-api:8081
-      NOTIFIER_STREAM_CONTROL_PEER_TOKEN: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway}
-      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
+      NOTIFIER_STREAM_CONTROL_PEER_TOKEN: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway-2026}
+      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
       NOTIFIER_VERSION_STORE_PATH: /data/version-store
       HEALTH_CHECK_PORT: "8080"
       # Internal HTTP surface for fixture-rendered receiver tests.
@@ -224,7 +224,7 @@ services:
       # NOTIFIER_RUNTIME_PEER_TOKEN on alert-control-api.
       NOTIFIER_INTERNAL_HTTP_ENABLED: "true"
       NOTIFIER_INTERNAL_HTTP_BIND_ADDRESS: "0.0.0.0:9094"
-      NOTIFIER_INTERNAL_HTTP_PEER_TOKEN: dev-peer-token-notifier-gateway
+      NOTIFIER_INTERNAL_HTTP_PEER_TOKEN: dev-peer-token-notifier-gateway-1
       WORKBENCH_RECEIVER_BASE_URL: http://portal-backend:3001/v1/internal/receivers
       RAKSHA_WEB_PORTAL_URL: http://localhost:3000
     volumes:
@@ -252,7 +252,7 @@ services:
       # API-key resolution for live capture (Alchemy URL substitution etc.).
       # tenants.tenant_api_keys is portal-owned; capture reads it from there.
       STREAM_CONTROL_TENANTS_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_portal?sslmode=disable
-      STREAM_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-event-gateway
+      STREAM_CONTROL_INTERNAL_PEER_TOKEN: dev-peer-token-event-gateway-2026
       STREAM_CONTROL_SIM_REDIS_URL: redis://default:raksha-local-redis-secret@redis:6379
       STREAM_CONTROL_SIM_SHARED_ROUTE_KEY: raksha:events:inbound
     ports:
@@ -283,7 +283,7 @@ services:
       AWS_ENDPOINT_URL_S3: http://minio:9000
       AWS_ENDPOINT_URL: http://minio:9000
       INGESTION_STREAM_CONTROL_URL: http://stream-control-api:8081
-      INGESTION_STREAM_CONTROL_PEER_TOKEN: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway}
+      INGESTION_STREAM_CONTROL_PEER_TOKEN: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway-2026}
     volumes:
       - ./configs/event-gateway.toml:/app/config.toml:ro
     ports:
@@ -329,13 +329,13 @@ services:
       SIMLAB_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_simlab?sslmode=disable
       SIMLAB_BUNDLE_ROOTS: /bundles/platform
       SIMLAB_BUNDLE_STORE_DIR: /data/bundles
-      SIMLAB_INTERNAL_PEER_TOKEN: dev-peer-token-simlab
+      SIMLAB_INTERNAL_PEER_TOKEN: dev-peer-token-simlab-local-2026
       SIMLAB_INGESTION_SIM_BASE_URL: http://stream-control-api:8081
-      SIMLAB_INGESTION_SIM_PEER_TOKEN: dev-peer-token-event-gateway
+      SIMLAB_INGESTION_SIM_PEER_TOKEN: dev-peer-token-event-gateway-2026
       SIMLAB_RULE_CONTROL_BASE_URL: http://rule-control-api:8082
-      SIMLAB_RULE_CONTROL_PEER_TOKEN: dev-peer-token-engine
+      SIMLAB_RULE_CONTROL_PEER_TOKEN: dev-peer-token-engine-local-2026
       SIMLAB_NOTIFIER_BASE_URL: http://alert-control-api:8083
-      SIMLAB_NOTIFIER_PEER_TOKEN: dev-peer-token-notifier-gateway
+      SIMLAB_NOTIFIER_PEER_TOKEN: dev-peer-token-notifier-gateway-1
     volumes:
       - ../../../raksha-engine/apps/engine/scenario-bundles:/bundles/platform:ro
       - simlab-data:/data
@@ -393,12 +393,12 @@ services:
       AI_KEK_BASE64: ${AI_KEK_BASE64:-cmFrc2hhLWxvY2FsLWRldi1rZWstMzItYnl0ZXMhISE=}
       EGRESS_ALLOWLIST: ${AI_EGRESS_ALLOWLIST:-api.anthropic.com,simlab-api,rule-control-api,alert-control-api}
       SIMLAB_BASE_URL: http://simlab-api:8084
-      SIMLAB_PEER_TOKEN: ${PEER_TOKEN_SIMLAB:-dev-peer-token-simlab}
+      SIMLAB_PEER_TOKEN: ${PEER_TOKEN_SIMLAB:-dev-peer-token-simlab-local-2026}
       RULE_CONTROL_BASE_URL: http://rule-control-api:8082
-      RULE_CONTROL_PEER_TOKEN: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine}
+      RULE_CONTROL_PEER_TOKEN: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine-local-2026}
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
-      SERVICE_TOKEN: ${PEER_TOKEN_AI_AGENTS:-dev-peer-token-ai-agents}
-      ADMIN_PEER_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
+      SERVICE_TOKEN: ${PEER_TOKEN_AI_AGENTS:-dev-peer-token-ai-agents-local-26}
+      ADMIN_PEER_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
       RAKSHA_LOG_LEVEL: ${RAKSHA_LOG_LEVEL:-info}
       DEV_SKIP_PERIMETER: "true"
     ports:
@@ -432,11 +432,11 @@ services:
       DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_portal
       DATABASE_POOL_SIZE: 10
       CORS_ORIGINS: http://localhost:3000,http://localhost:3002
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
-      PEER_TOKEN_ENGINE: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine}
-      PEER_TOKEN_NOTIFIER_GATEWAY: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway}
-      PEER_TOKEN_EVENT_GATEWAY: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway}
-      PEER_TOKEN_SIMLAB: ${PEER_TOKEN_SIMLAB:-dev-peer-token-simlab}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
+      PEER_TOKEN_ENGINE: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine-local-2026}
+      PEER_TOKEN_NOTIFIER_GATEWAY: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway-1}
+      PEER_TOKEN_EVENT_GATEWAY: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway-2026}
+      PEER_TOKEN_SIMLAB: ${PEER_TOKEN_SIMLAB:-dev-peer-token-simlab-local-2026}
       ENGINE_BASE_URL: http://rule-control-api:8082
       NOTIFIER_BASE_URL: http://alert-control-api:8083
       EVENT_GATEWAY_BASE_URL: http://ingestion-gateway:8080
@@ -448,7 +448,7 @@ services:
       # agent-api: tenant-scoped AI agent runtime; ai-proxy in portal-backend
       # forwards /v1/api/ai/* and /v1/api/admin/ai/* to this URL.
       AI_AGENTS_BASE_URL: http://agent-api:8090
-      AI_AGENTS_SERVICE_TOKEN: ${PEER_TOKEN_AI_AGENTS:-dev-peer-token-ai-agents}
+      AI_AGENTS_SERVICE_TOKEN: ${PEER_TOKEN_AI_AGENTS:-dev-peer-token-ai-agents-local-26}
       PROMETHEUS_URL: http://prometheus:9090
     ports:
       - "3001:3001"
@@ -491,9 +491,9 @@ services:
       CONTROL_SERVICE_URL: http://portal-backend:3001
       LAB_SERVICE_URL: http://simlab-api:8084
       SIMLAB_BASE_URL: http://simlab-api:8084
-      PEER_TOKEN_SIMLAB: ${PEER_TOKEN_SIMLAB:-dev-peer-token-simlab}
-      RAKSHA_API_KEY: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
-      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
+      PEER_TOKEN_SIMLAB: ${PEER_TOKEN_SIMLAB:-dev-peer-token-simlab-local-2026}
+      RAKSHA_API_KEY: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
+      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
     ports:
       - "3000:3000"
     depends_on:
@@ -518,12 +518,12 @@ services:
       RAKSHA_ADMIN_SESSION_SECRET: ${RAKSHA_ADMIN_SESSION_SECRET:-raksha-local-admin-session-secret-32chars}
       RAKSHA_ADMIN_DEV_AUTOLOGIN: "false"
       RAKSHA_ADMIN_LOCAL_LOGIN_ENABLED: "true"
-      RAKSHA_ADMIN_DEV_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
-      ADMIN_DEV_BEARER_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
+      RAKSHA_ADMIN_DEV_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
+      ADMIN_DEV_BEARER_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
       RAKSHA_ADMIN_SECURE_COOKIES: "false"
       ADMIN_API_BASE_URL: http://portal-backend:3001
-      RAKSHA_API_KEY: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
-      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local}
+      RAKSHA_API_KEY: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
+      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
     ports:
       - "3002:3002"
     depends_on:
@@ -570,7 +570,7 @@ services:
     environment:
       RISK_MONITOR_LISTEN_ADDR: ":8088"
       RISK_MONITOR_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_risk_monitor?sslmode=disable
-      RISK_MONITOR_PEER_TOKEN: ${PEER_TOKEN_RISK_MONITOR:-dev-peer-token-risk-monitor}
+      RISK_MONITOR_PEER_TOKEN: ${PEER_TOKEN_RISK_MONITOR:-dev-peer-token-risk-monitor-local}
       RISK_MONITOR_KAST_TENANT_UUID: ${RISK_MONITOR_KAST_TENANT_UUID:-20000000-0000-0000-0000-000000000001}
       RISK_MONITOR_SIGNAL_TENANT_UUID: ${RISK_MONITOR_SIGNAL_TENANT_UUID:-00000000-0000-0000-0000-ffffffffffff}
       # Depeg signal data is read from rule-control-api (engine bounded context).
@@ -579,11 +579,11 @@ services:
       # The engine Rust runtime writes consensus_price signals via the internal batch
       # endpoint; this service reads them — no direct DB cross-reads.
       RISK_MONITOR_RULE_CONTROL_API_URL: http://rule-control-api:8082
-      RISK_MONITOR_RULE_CONTROL_PEER_TOKEN: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine}
+      RISK_MONITOR_RULE_CONTROL_PEER_TOKEN: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine-local-2026}
       RISK_MONITOR_ALERT_API_URL: http://alert-control-api:8083
-      RISK_MONITOR_ALERT_CONTROL_PEER_TOKEN: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway}
+      RISK_MONITOR_ALERT_CONTROL_PEER_TOKEN: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway-1}
       RISK_MONITOR_STREAM_CONTROL_API_URL: http://stream-control-api:8081
-      RISK_MONITOR_STREAM_CONTROL_PEER_TOKEN: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway}
+      RISK_MONITOR_STREAM_CONTROL_PEER_TOKEN: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway-2026}
       RISK_MONITOR_CACHE_REFRESH_INTERVAL: "30s"
       RISK_MONITOR_DASHBOARD_URL: http://localhost:3003
       # ProvisionerCache — Base mainnet RPC + contract addresses for gtUSDa queue stress.
@@ -619,7 +619,7 @@ services:
         VITE_API_BASE_URL: /api/v1
         VITE_MONITOR_DASHBOARD_URL: http://localhost:3000/alerts
     environment:
-      RISK_MONITOR_PEER_TOKEN: ${PEER_TOKEN_RISK_MONITOR:-dev-peer-token-risk-monitor}
+      RISK_MONITOR_PEER_TOKEN: ${PEER_TOKEN_RISK_MONITOR:-dev-peer-token-risk-monitor-local}
     ports:
       - "3003:3003"
     depends_on:

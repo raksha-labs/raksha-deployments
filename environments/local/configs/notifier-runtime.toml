@@ -18,13 +18,13 @@ autoclaim_min_idle_ms = 30000
 [config_source]
 endpoint = "http://alert-control-api:8083"
 tenant_ids = ["00000000-0000-0000-0000-ffffffffffff"]
-peer_token = "dev-peer-token-notifier-gateway"
+peer_token = "dev-peer-token-notifier-gateway-1"
 version_store_path = "/data/version-store"
 watch_timeout_secs = 25
 
 [ingest]
 endpoint = "http://alert-control-api:8083"
-peer_token = "dev-peer-token-notifier-gateway"
+peer_token = "dev-peer-token-notifier-gateway-1"
 timeout_secs = 5
 
 [health]

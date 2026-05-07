@@ -44,7 +44,7 @@ bind_address = "0.0.0.0:9090"
 [config_source]
 endpoint = "http://rule-control-api:8082"
 tenant_ids = ["00000000-0000-0000-0000-ffffffffffff"]
-peer_token = "dev-peer-token-engine"
+peer_token = "dev-peer-token-engine-local-2026"
 version_store_path = "/data/version-store"
 peer_name = "engine"
 watch_timeout_secs = 25
