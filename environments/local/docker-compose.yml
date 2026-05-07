@@ -586,6 +586,11 @@ services:
       RISK_MONITOR_STREAM_CONTROL_PEER_TOKEN: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway}
       RISK_MONITOR_CACHE_REFRESH_INTERVAL: "30s"
       RISK_MONITOR_DASHBOARD_URL: http://localhost:3003
+      # ProvisionerCache — Base mainnet RPC + contract addresses for gtUSDa queue stress.
+      # Override RISK_MONITOR_BASE_RPC_URL in .env.local with an Alchemy URL for reliability.
+      RISK_MONITOR_BASE_RPC_URL: ${RISK_MONITOR_BASE_RPC_URL:-https://mainnet.base.org}
+      RISK_MONITOR_PROVISIONER_ADDRESS: ${RISK_MONITOR_PROVISIONER_ADDRESS:-0x18CF8d963E1a727F9bbF3AEffa0Bd04FB4dBdA07}
+      RISK_MONITOR_VAULT_ADDRESS: ${RISK_MONITOR_VAULT_ADDRESS:-0x000000000001CdB57E58Fa75Fe420a0f4D6640D5}
       LOG_LEVEL: info
     ports:
       - "8088:8088"
