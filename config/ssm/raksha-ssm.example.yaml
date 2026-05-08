@@ -24,7 +24,13 @@
 ingestion-gateway:
   static:
     REDIS_URL: "redis://raksha-redis-dev.example.cache.amazonaws.com:6379"
+    ARCHIVE_ENABLED: "true"
     ARCHIVE_BUCKET: "raksha-dev-events"
+    ARCHIVE_PREFIX: "events"
+    HOT_TTL_ENABLED: "true"
+    HOT_TTL_RETENTION_HOURS: "23"
+    HOT_TTL_SWEEP_INTERVAL_SECS: "900"
+    HOT_TTL_BATCH_SIZE: "10000"
     RUST_LOG: "error"
     LOG_LEVEL: "error"
   secret:
