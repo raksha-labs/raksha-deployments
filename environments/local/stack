@@ -15,6 +15,9 @@
 #   ./stack qa up           # start qa-web (end-to-end test runner) on :4000
 #   ./stack qa down         # stop qa-web
 #   ./stack qa logs         # follow qa-web logs
+#   ./stack tenant up       # start isolated mock tenant webhook receiver on :18088
+#   ./stack tenant down     # stop mock tenant webhook receiver
+#   ./stack tenant logs     # follow mock tenant webhook receiver logs
 set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -24,6 +27,9 @@ COMPOSE="docker compose"
 COMPOSE_WITH_MONITORING="docker compose --profile monitoring"
 QA_FRAMEWORK_DIR="${SCRIPT_DIR}/../../../raksha-qa-framework"
 QA_COMPOSE="docker compose -f ${QA_FRAMEWORK_DIR}/docker-compose.qa.yml --project-directory ${QA_FRAMEWORK_DIR}"
+TENANT_TOOLS_DIR="${SCRIPT_DIR}/../../../raksha-tenant-tools"
+TENANT_RECEIVER_DIR="${TENANT_TOOLS_DIR}/mock-webhook-receiver"
+TENANT_COMPOSE="docker compose -p raksha-tenant-tools -f ${TENANT_RECEIVER_DIR}/deploy/local/docker-compose.yml"
 
 cmd_up() {
   echo "==> validating compose file"
@@ -78,6 +84,7 @@ cmd_up() {
   ./stack errors engine   # errors for one service
   ./stack status          # re-check health
   ./stack qa up           # start e2e test runner web UI on http://localhost:4000
+  ./stack tenant up       # start isolated mock tenant webhook receiver on http://localhost:8088
   ./stack down            # stop (keep data)
   ./stack reset           # stop + wipe volumes
 EOF
@@ -110,6 +117,64 @@ cmd_qa() {
       $QA_COMPOSE logs -f --tail=100 qa-web
       ;;
     *) echo "usage: $0 qa {up|down|logs}" >&2; exit 2 ;;
+  esac
+}
+
+cmd_tenant() {
+  local tenant_cmd="${1:-up}"
+  shift || true
+  if [[ ! -d "$TENANT_RECEIVER_DIR" ]]; then
+    cat >&2 <<EOF
+!!! raksha-tenant-tools not found at $TENANT_TOOLS_DIR
+    Clone it next to the other repos:
+    git clone https://github.com/raksha-labs/raksha-tenant-tools.git "$TENANT_TOOLS_DIR"
+EOF
+    exit 1
+  fi
+
+  case "$tenant_cmd" in
+    up)
+      echo "==> building isolated mock tenant webhook receiver"
+      $TENANT_COMPOSE build tenant-webhook-receiver
+      echo "==> starting isolated mock tenant webhook receiver on http://localhost:${TENANT_RECEIVER_PORT:-18088}"
+      $TENANT_COMPOSE up -d tenant-webhook-receiver
+      cat <<EOF
+==> tenant receiver ready
+  health/events API          http://localhost:${TENANT_RECEIVER_PORT:-18088}
+  webhook URL from host      http://localhost:${TENANT_RECEIVER_PORT:-18088}/webhooks/raksha
+  webhook URL from Raksha    http://host.docker.internal:${TENANT_RECEIVER_PORT:-18088}/webhooks/raksha
+
+==> default local secrets
+  AUTH_TOKEN                 change-me-local-token
+  SIGNATURE_SECRET           change-me-local-signing-secret
+
+==> useful commands
+  ./stack tenant events      # list captured webhook events
+  ./stack tenant clear       # clear captured events
+  ./stack tenant logs        # follow receiver logs
+  ./stack tenant down        # stop receiver
+EOF
+      ;;
+    down)
+      echo "==> stopping isolated mock tenant webhook receiver"
+      $TENANT_COMPOSE down --remove-orphans
+      ;;
+    logs)
+      $TENANT_COMPOSE logs -f --tail=100 tenant-webhook-receiver
+      ;;
+    status)
+      echo "==> tenant receiver status"
+      $TENANT_COMPOSE ps tenant-webhook-receiver
+      ;;
+    events)
+      curl -s "http://localhost:${TENANT_RECEIVER_PORT:-18088}/events${1:+?$1}"
+      printf "\n"
+      ;;
+    clear)
+      curl -s -X DELETE "http://localhost:${TENANT_RECEIVER_PORT:-18088}/events"
+      printf "\n"
+      ;;
+    *) echo "usage: $0 tenant {up|down|logs|status|events [query]|clear}" >&2; exit 2 ;;
   esac
 }
 
@@ -188,5 +253,6 @@ case "$cmd" in
   errors) cmd_errors "$@" ;;
   status) cmd_status ;;
   qa)     cmd_qa "$@" ;;
-  *) echo "usage: $0 {up|down [-v]|reset|logs [svc]|errors [svc]|status|qa {up|down|logs}}" >&2; exit 2 ;;
+  tenant) cmd_tenant "$@" ;;
+  *) echo "usage: $0 {up|down [-v]|reset|logs [svc]|errors [svc]|status|qa {up|down|logs}|tenant {up|down|logs|status|events|clear}}" >&2; exit 2 ;;
 esac

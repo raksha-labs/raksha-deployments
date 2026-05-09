@@ -9,6 +9,7 @@ cd raksha-deployments/environments/local
 ./stack status    # re-check health
 ./stack down      # stop (keep volumes)
 ./stack reset     # stop + wipe volumes (fresh DB)
+./stack tenant up # start isolated mock tenant webhook receiver
 ```
 
 ## Naming convention
@@ -36,9 +37,37 @@ Local stack and AWS service catalogs follow the same operator-facing names.
 | notifier-runtime health | http://localhost:8082/health |
 | notifier-runtime metrics | http://localhost:9093/metrics |
 | engine metrics | http://localhost:9091/metrics |
+| Mock tenant webhook receiver (opt-in) | http://localhost:18088 |
 | MinIO console | http://localhost:9001 (raksha / rakshadevsecret) |
 | Postgres | `localhost:5432` (raksha / raksha) |
 | Redis | `localhost:6379` |
+
+## Optional mock tenant receiver
+
+Use this when validating tenant-style webhook delivery outside the normal Raksha path. It starts `raksha-tenant-tools/mock-webhook-receiver` as a separate Docker Compose project named `raksha-tenant-tools`, not as a `raksha-local` service.
+
+```bash
+./stack tenant up
+./stack tenant events
+./stack tenant clear
+./stack tenant logs
+./stack tenant down
+```
+
+Webhook URL to configure from the Raksha local stack:
+
+```text
+http://host.docker.internal:18088/webhooks/raksha
+```
+
+Default local secrets:
+
+```text
+AUTH_TOKEN=change-me-local-token
+SIGNATURE_SECRET=change-me-local-signing-secret
+```
+
+For a production-like KAST test, keep the same flow but deploy `raksha-tenant-tools` in a separate AWS account/VPC behind HTTPS.
 
 ## Databases
 
