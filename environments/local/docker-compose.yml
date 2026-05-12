@@ -549,6 +549,7 @@ services:
       PGPASSWORD: raksha
     volumes:
       - ../../../raksha-risk-dashboard/apps/risk-monitor-api/db/control/schema.sql:/schemas/risk-monitor/schema.sql:ro
+      - ../../../raksha-risk-dashboard/apps/risk-monitor-api/db/seed/kast_client.sql:/schemas/risk-monitor/seed/kast_client.sql:ro
     entrypoint: >
       /bin/sh -c "
       set -e &&
@@ -556,6 +557,7 @@ services:
       psql -h postgres -U raksha -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname = 'raksha_risk_monitor'\" | grep -q 1 ||
       psql -h postgres -U raksha -d postgres -c \"CREATE DATABASE raksha_risk_monitor OWNER raksha\" &&
       psql -h postgres -U raksha -d raksha_risk_monitor -f /schemas/risk-monitor/schema.sql &&
+      psql -h postgres -U raksha -d raksha_risk_monitor -f /schemas/risk-monitor/seed/kast_client.sql &&
       echo 'risk-monitor db init complete'
       "
     depends_on:
