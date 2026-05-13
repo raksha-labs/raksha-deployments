@@ -388,14 +388,18 @@ services:
       dockerfile: Dockerfile
     environment:
       BIND_ADDR: ":8090"
-      DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_ai?sslmode=disable
+      DATABASE_URL: postgres://raksha_ai:${RAKSHA_AI_DB_PASSWORD:-set-via-secrets}@postgres:5432/raksha_ai?sslmode=disable
       # 32-byte base64 KEK for AES-GCM provider-key sealing (DEV ONLY).
       AI_KEK_BASE64: ${AI_KEK_BASE64:-cmFrc2hhLWxvY2FsLWRldi1rZWstMzItYnl0ZXMhISE=}
-      EGRESS_ALLOWLIST: ${AI_EGRESS_ALLOWLIST:-api.anthropic.com,simlab-api,rule-control-api,alert-control-api}
+      EGRESS_ALLOWLIST: ${AI_EGRESS_ALLOWLIST:-api.anthropic.com,simlab-api,rule-control-api,stream-control-api,alert-control-api}
       SIMLAB_BASE_URL: http://simlab-api:8084
       SIMLAB_PEER_TOKEN: ${PEER_TOKEN_SIMLAB:-dev-peer-token-simlab-local-2026}
       RULE_CONTROL_BASE_URL: http://rule-control-api:8082
       RULE_CONTROL_PEER_TOKEN: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine-local-2026}
+      STREAM_CONTROL_BASE_URL: http://stream-control-api:8081
+      STREAM_CONTROL_PEER_TOKEN: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway-2026}
+      NOTIFIER_BASE_URL: http://alert-control-api:8083
+      NOTIFIER_PEER_TOKEN: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway-1}
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
       SERVICE_TOKEN: ${PEER_TOKEN_AI_AGENTS:-dev-peer-token-ai-agents-local-26}
       ADMIN_PEER_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
@@ -409,6 +413,10 @@ services:
       simlab-api:
         condition: service_healthy
       rule-control-api:
+        condition: service_healthy
+      stream-control-api:
+        condition: service_healthy
+      alert-control-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8090/healthz >/dev/null || exit 1"]
@@ -433,6 +441,8 @@ services:
       DATABASE_POOL_SIZE: 10
       CORS_ORIGINS: http://localhost:3000,http://localhost:3002
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
+      INTERNAL_SERVICE_TOKEN_PORTAL: ${INTERNAL_SERVICE_TOKEN_PORTAL:-dev-service-token-portal-local-2026}
+      INTERNAL_SERVICE_TOKEN_ADMIN: ${INTERNAL_SERVICE_TOKEN_ADMIN:-dev-service-token-admin-local-2026}
       PEER_TOKEN_ENGINE: ${PEER_TOKEN_ENGINE:-dev-peer-token-engine-local-2026}
       PEER_TOKEN_NOTIFIER_GATEWAY: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway-1}
       PEER_TOKEN_EVENT_GATEWAY: ${PEER_TOKEN_EVENT_GATEWAY:-dev-peer-token-event-gateway-2026}
@@ -447,7 +457,7 @@ services:
       STREAM_CONTROL_BASE_URL: http://stream-control-api:8081
       # agent-api: tenant-scoped AI agent runtime; ai-proxy in portal-backend
       # forwards /v1/api/ai/* and /v1/api/admin/ai/* to this URL.
-      AI_AGENTS_BASE_URL: http://agent-api:8090
+      AI_AGENTS_BASE_URL: ${AI_AGENTS_BASE_URL:-http://agent-api:8090}
       AI_AGENTS_SERVICE_TOKEN: ${PEER_TOKEN_AI_AGENTS:-dev-peer-token-ai-agents-local-26}
       PROMETHEUS_URL: http://prometheus:9090
     ports:
@@ -493,7 +503,8 @@ services:
       SIMLAB_BASE_URL: http://simlab-api:8084
       PEER_TOKEN_SIMLAB: ${PEER_TOKEN_SIMLAB:-dev-peer-token-simlab-local-2026}
       RAKSHA_API_KEY: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
-      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
+      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN_PORTAL:-dev-service-token-portal-local-2026}
+      AUTH_INTERNAL_SERVICE_TOKEN_ADMIN: ${INTERNAL_SERVICE_TOKEN_ADMIN:-dev-service-token-admin-local-2026}
     ports:
       - "3000:3000"
     depends_on:
@@ -523,7 +534,8 @@ services:
       RAKSHA_ADMIN_SECURE_COOKIES: "false"
       ADMIN_API_BASE_URL: http://portal-backend:3001
       RAKSHA_API_KEY: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
-      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-service-token-local-dev-2026}
+      AUTH_INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN_PORTAL:-dev-service-token-portal-local-2026}
+      AUTH_INTERNAL_SERVICE_TOKEN_ADMIN: ${INTERNAL_SERVICE_TOKEN_ADMIN:-dev-service-token-admin-local-2026}
     ports:
       - "3002:3002"
     depends_on:
