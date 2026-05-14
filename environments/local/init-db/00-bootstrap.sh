@@ -74,6 +74,7 @@ create_db "raksha_ai"
 load_schema_file "raksha_ai" "/schemas/ai/0001_init.sql"
 load_schema_file "raksha_ai" "/schemas/ai/0002_alert_briefs.sql"
 load_schema_file "raksha_ai" "/schemas/ai/0003_model_catalog.sql"
+load_schema_file "raksha_ai" "/schemas/ai/0004_prompt_overrides.sql"
 load_schema_file "raksha_ai" "/schemas/ai/seed_dev.sql"
 
 create_db "raksha_risk_monitor"
