@@ -374,6 +374,8 @@ services:
       psql -h postgres -U raksha -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname = 'raksha_ai'\" | grep -q 1 ||
       psql -h postgres -U raksha -d postgres -c \"CREATE DATABASE raksha_ai OWNER raksha\" &&
       psql -h postgres -U raksha -d raksha_ai -f /schemas/ai/0001_init.sql &&
+      psql -h postgres -U raksha -d raksha_ai -f /schemas/ai/0002_alert_briefs.sql &&
+      psql -h postgres -U raksha -d raksha_ai -f /schemas/ai/0003_model_catalog.sql &&
       psql -h postgres -U raksha -d raksha_ai -f /schemas/ai/seed_dev.sql &&
       echo 'ai db init complete'
       "
