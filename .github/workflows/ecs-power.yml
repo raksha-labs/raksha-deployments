@@ -20,16 +20,34 @@ on:
           - start
           - stop
       service_group:
-        description: Service group
-        required: true
+        description: >
+          Service group to target. Ignored when individual_service is set.
+          live-path = ingestion-gateway, engine, notifier-runtime
+          control-path = portal, admin, portal-backend, stream-control-api, rule-control-api, alert-control-api, simlab-api, agent-api, risk-monitor-api, risk-monitor-ui
+          monitoring = grafana, prometheus
+          tenant-tools = tenant-webhook-receiver
+          all = every service across all clusters
+        required: false
         type: choice
         options:
           - live-path
           - control-path
+          - monitoring
+          - tenant-tools
           - all
+      individual_service:
+        description: >
+          Target a single service by short name instead of a group.
+          Valid names: engine, ingestion-gateway, notifier-runtime, portal,
+          admin, portal-backend, stream-control-api, rule-control-api,
+          alert-control-api, simlab-api, agent-api, risk-monitor-api,
+          risk-monitor-ui, grafana, prometheus, tenant-webhook-receiver
+        required: false
+        type: string
+        default: ""
       desired_count:
         description: Desired count when starting services
-        required: true
+        required: false
         type: choice
         options:
           - "1"
@@ -42,7 +60,7 @@ permissions:
 
 jobs:
   ecs-power:
-    name: ${{ inputs.action }} ${{ inputs.service_group }} in ${{ inputs.environment }}
+    name: ${{ inputs.action }} ${{ inputs.individual_service != '' && inputs.individual_service || inputs.service_group }} in ${{ inputs.environment }}
     runs-on: ubuntu-latest
 
     steps:
@@ -57,6 +75,7 @@ jobs:
           ENVIRONMENT: ${{ inputs.environment }}
           ACTION: ${{ inputs.action }}
           SERVICE_GROUP: ${{ inputs.service_group }}
+          INDIVIDUAL_SERVICE: ${{ inputs.individual_service }}
           START_DESIRED_COUNT: ${{ inputs.desired_count }}
         run: |
           set -eu
@@ -64,34 +83,56 @@ jobs:
           legacy_cluster="raksha-${ENVIRONMENT}"
           runtime_cluster="raksha-${ENVIRONMENT}-runtime"
           control_cluster="raksha-${ENVIRONMENT}-control"
+          tenant_cluster="tenant-webhook-receiver"
 
           live_services="ingestion-gateway engine notifier-runtime"
           control_services="portal admin portal-backend stream-control-api rule-control-api alert-control-api simlab-api agent-api risk-monitor-api risk-monitor-ui"
+          monitoring_services="grafana prometheus"
+          tenant_services="tenant-webhook-receiver"
 
-          case "$SERVICE_GROUP" in
-            live-path)
-              services="$live_services"
-              ;;
-            control-path)
-              services="$control_services"
-              ;;
-            all)
-              services="$live_services $control_services"
-              ;;
-            *)
-              echo "::error::unknown service_group: $SERVICE_GROUP" >&2
-              exit 1
-              ;;
-          esac
+          # Resolve full ECS service name from short name.
+          # Most services follow raksha-${short_name}-${ENVIRONMENT}, but
+          # monitoring and tenant-tools use different naming conventions.
+          ecs_service_name() {
+            local short_name="$1"
+            case "$short_name" in
+              grafana)                 echo "raksha-${ENVIRONMENT}-monitoring-grafana" ;;
+              prometheus)              echo "raksha-${ENVIRONMENT}-monitoring-prometheus" ;;
+              tenant-webhook-receiver) echo "tenant-webhook-receiver" ;;
+              *)                       echo "raksha-${short_name}-${ENVIRONMENT}" ;;
+            esac
+          }
 
-          service_exists() {
-            local cluster="$1"
-            local service_name="$2"
-            aws ecs describe-services \
-              --cluster "$cluster" \
-              --services "$service_name" \
-              --query "services[?serviceName=='$service_name' && status!='INACTIVE'] | [0].serviceName" \
-              --output text | grep -qx "$service_name"
+          # Resolve ECS cluster from short name.
+          cluster_for_service() {
+            local short_name="$1"
+            case "$short_name" in
+              tenant-webhook-receiver)
+                echo "$tenant_cluster"
+                ;;
+              grafana|prometheus)
+                if cluster_exists "$control_cluster"; then
+                  echo "$control_cluster"
+                else
+                  echo "$legacy_cluster"
+                fi
+                ;;
+              *)
+                if echo " $live_services " | grep -q " $short_name "; then
+                  if cluster_exists "$runtime_cluster"; then
+                    echo "$runtime_cluster"
+                  else
+                    echo "$legacy_cluster"
+                  fi
+                else
+                  if cluster_exists "$control_cluster"; then
+                    echo "$control_cluster"
+                  else
+                    echo "$legacy_cluster"
+                  fi
+                fi
+                ;;
+            esac
           }
 
           cluster_exists() {
@@ -100,26 +141,6 @@ jobs:
               --clusters "$cluster" \
               --query "clusters[?clusterName=='$cluster' && status=='ACTIVE'] | [0].clusterName" \
               --output text | grep -qx "$cluster"
-          }
-
-          cluster_for_service() {
-            local short_name="$1"
-            case " $live_services " in
-              *" $short_name "*)
-                if cluster_exists "$runtime_cluster"; then
-                  printf '%s' "$runtime_cluster"
-                else
-                  printf '%s' "$legacy_cluster"
-                fi
-                ;;
-              *)
-                if cluster_exists "$control_cluster"; then
-                  printf '%s' "$control_cluster"
-                else
-                  printf '%s' "$legacy_cluster"
-                fi
-                ;;
-            esac
           }
 
           service_exists_in_cluster() {
@@ -170,50 +191,60 @@ jobs:
               --max-capacity "$max_capacity" >/dev/null
           }
 
-          describe_selected() {
-            for short_name in $services; do
-              local service_name="raksha-${short_name}-${ENVIRONMENT}"
-              local cluster
-              cluster="$(cluster_for_service "$short_name")"
-              if ! service_exists_in_cluster "$service_name" "$cluster"; then
-                if [ "$cluster" != "$legacy_cluster" ] && service_exists_in_cluster "$service_name" "$legacy_cluster"; then
-                  cluster="$legacy_cluster"
-                else
-                  echo "==> $service_name not found in $cluster"
-                  continue
-                fi
-              fi
-              echo "==> $service_name on $cluster"
-              aws ecs describe-services \
-                --cluster "$cluster" \
-                --services "$service_name" \
-                --query "services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,rollout:deployments[0].rolloutState,taskDefinition:taskDefinition}" \
-                --output table
-            done
-          }
-
-          if [ "$ACTION" = "status" ]; then
-            describe_selected
-            exit 0
+          # Resolve which short service names to operate on.
+          if [ -n "$INDIVIDUAL_SERVICE" ]; then
+            # Validate against known services
+            all_known="$live_services $control_services $monitoring_services $tenant_services"
+            if ! echo " $all_known " | grep -q " $INDIVIDUAL_SERVICE "; then
+              echo "::error::Unknown service '${INDIVIDUAL_SERVICE}'. Valid names: $all_known" >&2
+              exit 1
+            fi
+            services="$INDIVIDUAL_SERVICE"
+          else
+            case "$SERVICE_GROUP" in
+              live-path)    services="$live_services" ;;
+              control-path) services="$control_services" ;;
+              monitoring)   services="$monitoring_services" ;;
+              tenant-tools) services="$tenant_services" ;;
+              all)          services="$live_services $control_services $monitoring_services $tenant_services" ;;
+              *)
+                echo "::error::Unknown service_group '${SERVICE_GROUP}'." >&2
+                exit 1
+                ;;
+            esac
           fi
 
-          for short_name in $services; do
-            service_name="raksha-${short_name}-${ENVIRONMENT}"
+          process_service() {
+            local short_name="$1"
+            local service_name
+            local cluster
+            service_name="$(ecs_service_name "$short_name")"
             cluster="$(cluster_for_service "$short_name")"
 
-            echo "==> $ACTION $service_name on $cluster"
-            if ! service_exists "$cluster" "$service_name"; then
-              if [ "$cluster" != "$legacy_cluster" ] && service_exists "$legacy_cluster" "$service_name"; then
+            echo "==> [$ACTION] $service_name on $cluster"
+
+            if ! service_exists_in_cluster "$service_name" "$cluster"; then
+              # Fallback to legacy cluster for non-tenant, non-monitoring services
+              if [ "$cluster" != "$legacy_cluster" ] && [ "$cluster" != "$tenant_cluster" ] && \
+                 service_exists_in_cluster "$service_name" "$legacy_cluster"; then
                 cluster="$legacy_cluster"
-                echo "  service is still on legacy cluster; using $legacy_cluster"
+                echo "  service found on legacy cluster; using $legacy_cluster"
               else
-                echo "  service does not exist in $cluster; skipping"
-                continue
+                echo "  service not found in $cluster; skipping"
+                return 0
               fi
             fi
+
             resource_id="service/${cluster}/${service_name}"
 
             case "$ACTION" in
+              status)
+                aws ecs describe-services \
+                  --cluster "$cluster" \
+                  --services "$service_name" \
+                  --query "services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,rollout:deployments[0].rolloutState,taskDef:taskDefinition}" \
+                  --output table
+                ;;
               stop)
                 set_min_capacity "$resource_id" 0
                 aws ecs update-service \
@@ -234,11 +265,33 @@ jobs:
                   --output table
                 ;;
               *)
-                echo "::error::unknown action: $ACTION" >&2
+                echo "::error::Unknown action '${ACTION}'" >&2
                 exit 1
                 ;;
             esac
+          }
+
+          for short_name in $services; do
+            process_service "$short_name"
           done
 
-          echo
-          describe_selected
+          # Final status summary
+          if [ "$ACTION" != "status" ]; then
+            echo
+            echo "=== Final status ==="
+            for short_name in $services; do
+              process_service_status() {
+                local sn="$1"
+                local svc cluster
+                svc="$(ecs_service_name "$sn")"
+                cluster="$(cluster_for_service "$sn")"
+                if service_exists_in_cluster "$svc" "$cluster"; then
+                  aws ecs describe-services \
+                    --cluster "$cluster" --services "$svc" \
+                    --query "services[].{service:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,rollout:deployments[0].rolloutState}" \
+                    --output table
+                fi
+              }
+              process_service_status "$short_name"
+            done
+          fi

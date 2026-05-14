@@ -116,3 +116,40 @@ services:
     deploy_group: risk-dashboard
     rollout_order: 120
     default_strategy: rolling
+
+  # ── Monitoring (raksha-foundation-infra) ──────────────────────────
+  # Public pinned images managed by Terraform. No ECR build step.
+  # ecs_service_name pattern: raksha-${env}-monitoring-${name}
+  # cluster: raksha-${env}-control
+  - name: grafana
+    source_repo: raksha-foundation-infra
+    source_path: modules/monitoring
+    image_repo: grafana/grafana  # public image, not ECR
+    deploy_group: monitoring
+    rollout_order: 130
+    default_strategy: rolling
+    allow_desired_count_zero: true
+    public_image: true
+
+  - name: prometheus
+    source_repo: raksha-foundation-infra
+    source_path: modules/monitoring
+    image_repo: prom/prometheus  # public image, not ECR
+    deploy_group: monitoring
+    rollout_order: 140
+    default_strategy: rolling
+    allow_desired_count_zero: true
+    public_image: true
+
+  # ── Tenant tools (raksha-tenant-tools) ───────────────────────────
+  # Lives on the tenant-webhook-receiver cluster, not the main clusters.
+  # ecs_service_name: tenant-webhook-receiver (fixed, no env suffix)
+  - name: tenant-webhook-receiver
+    source_repo: raksha-tenant-tools
+    source_path: mock-webhook-receiver
+    image_repo: mock-webhook-receiver
+    deploy_group: tenant-tools
+    rollout_order: 150
+    default_strategy: rolling
+    allow_desired_count_zero: true
+    cluster_override: tenant-webhook-receiver
