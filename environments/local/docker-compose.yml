@@ -337,6 +337,15 @@ services:
       SIMLAB_RULE_CONTROL_PEER_TOKEN: dev-peer-token-engine-local-2026
       SIMLAB_NOTIFIER_BASE_URL: http://alert-control-api:8083
       SIMLAB_NOTIFIER_PEER_TOKEN: dev-peer-token-notifier-gateway-1
+      # Chain RPC for on-chain exploit data import.
+      # Set ALCHEMY_API_KEY and all EVM chains are auto-configured.
+      # Per-chain overrides take precedence when both are set.
+      ALCHEMY_API_KEY: ${ALCHEMY_API_KEY:-}
+      CHAIN_RPC_URL_ETHEREUM: ${CHAIN_RPC_URL_ETHEREUM:-}
+      CHAIN_RPC_URL_ARBITRUM: ${CHAIN_RPC_URL_ARBITRUM:-}
+      CHAIN_RPC_URL_POLYGON: ${CHAIN_RPC_URL_POLYGON:-}
+      CHAIN_RPC_URL_BSC: ${CHAIN_RPC_URL_BSC:-}
+      CHAIN_RPC_URL_OPTIMISM: ${CHAIN_RPC_URL_OPTIMISM:-}
     volumes:
       - ../../../raksha-engine/apps/engine/scenario-bundles:/bundles/platform:ro
       - simlab-data:/data
@@ -378,6 +387,7 @@ services:
       psql -h postgres -U raksha -d raksha_ai -f /schemas/ai/0002_alert_briefs.sql &&
       psql -h postgres -U raksha -d raksha_ai -f /schemas/ai/0003_model_catalog.sql &&
       psql -h postgres -U raksha -d raksha_ai -f /schemas/ai/0004_prompt_overrides.sql &&
+      psql -h postgres -U raksha -d raksha_ai -f /schemas/ai/0005_tenant_provider_keys.sql &&
       psql -h postgres -U raksha -d raksha_ai -f /schemas/ai/seed_dev.sql &&
       echo 'ai db init complete'
       "
@@ -464,6 +474,8 @@ services:
       AI_AGENTS_BASE_URL: ${AI_AGENTS_BASE_URL:-http://agent-api:8090}
       AI_AGENTS_SERVICE_TOKEN: ${PEER_TOKEN_AI_AGENTS:-dev-peer-token-ai-agents-local-26}
       PROMETHEUS_URL: http://prometheus:9090
+      PAGE_ASSISTANT_ANTHROPIC_KEY: ${PAGE_ASSISTANT_ANTHROPIC_KEY:-}
+      PAGE_ASSISTANT_MODEL: ${PAGE_ASSISTANT_MODEL:-claude-haiku-4-5-20251001}
     ports:
       - "3001:3001"
     depends_on:

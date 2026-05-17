@@ -75,6 +75,7 @@ load_schema_file "raksha_ai" "/schemas/ai/0001_init.sql"
 load_schema_file "raksha_ai" "/schemas/ai/0002_alert_briefs.sql"
 load_schema_file "raksha_ai" "/schemas/ai/0003_model_catalog.sql"
 load_schema_file "raksha_ai" "/schemas/ai/0004_prompt_overrides.sql"
+load_schema_file "raksha_ai" "/schemas/ai/0005_tenant_provider_keys.sql"
 load_schema_file "raksha_ai" "/schemas/ai/seed_dev.sql"
 
 create_db "raksha_risk_monitor"
@@ -136,7 +137,7 @@ psql_cmd -d raksha_simlab -c "ALTER DEFAULT PRIVILEGES IN SCHEMA simlab GRANT US
 # portal_backend → raksha_portal (iam.*, tenants.*, audit.*, billing.*, inbox.* schemas)
 psql_cmd -d postgres -c "CREATE ROLE portal_backend LOGIN PASSWORD 'raksha' NOSUPERUSER NOCREATEDB NOCREATEROLE;" 2>/dev/null || true
 psql_cmd -d postgres -c "GRANT CONNECT ON DATABASE raksha_portal TO portal_backend;" 2>/dev/null || true
-for schema in iam tenants audit billing inbox ops; do
+for schema in iam tenants audit billing inbox ops page_assistant; do
   psql_cmd -d raksha_portal -c "GRANT USAGE ON SCHEMA ${schema} TO portal_backend;" 2>/dev/null || true
   psql_cmd -d raksha_portal -c "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ${schema} TO portal_backend;" 2>/dev/null || true
   psql_cmd -d raksha_portal -c "ALTER DEFAULT PRIVILEGES IN SCHEMA ${schema} GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO portal_backend;" 2>/dev/null || true

@@ -84,3 +84,21 @@ services:
     desired_count: 1
     strategy: rolling
     config_profile: prod
+
+  grafana:
+    image_tag: prod-approved
+    desired_count: 1
+    strategy: rolling
+    config_profile: prod
+
+  prometheus:
+    image_tag: prod-approved
+    desired_count: 1
+    strategy: rolling
+    config_profile: prod
+
+  tenant-webhook-receiver:
+    image_tag: prod-approved
+    desired_count: 1
+    strategy: rolling
+    config_profile: prod

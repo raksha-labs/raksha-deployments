@@ -78,3 +78,21 @@ services:
     desired_count: 1
     strategy: rolling
     config_profile: dev
+
+  grafana:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  prometheus:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev
+
+  tenant-webhook-receiver:
+    image_tag: dev-main
+    desired_count: 1
+    strategy: rolling
+    config_profile: dev

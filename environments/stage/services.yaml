@@ -81,3 +81,21 @@ services:
     desired_count: 1
     strategy: rolling
     config_profile: stage
+
+  grafana:
+    image_tag: stage-approved
+    desired_count: 1
+    strategy: rolling
+    config_profile: stage
+
+  prometheus:
+    image_tag: stage-approved
+    desired_count: 1
+    strategy: rolling
+    config_profile: stage
+
+  tenant-webhook-receiver:
+    image_tag: stage-approved
+    desired_count: 1
+    strategy: rolling
+    config_profile: stage

@@ -79,7 +79,8 @@ ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
 ARG NEXT_PUBLIC_RISK_DASHBOARD_URL=http://localhost:3003
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 ENV NEXT_PUBLIC_RISK_DASHBOARD_URL=${NEXT_PUBLIC_RISK_DASHBOARD_URL}
-RUN pnpm --filter @raksha/portal build
+RUN --mount=type=cache,id=nextjs-portal-cache,target=/build/raksha-portal/apps/portal/.next/cache \
+    pnpm --filter @raksha/portal build
 
 FROM node:20-bookworm-slim AS portal
 
@@ -104,7 +105,8 @@ CMD ["sh", "-c", "cd /app/raksha-portal/apps/portal && npx next start -p 3000"]
 FROM deps AS admin-build
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
-RUN pnpm --filter @raksha/admin build
+RUN --mount=type=cache,id=nextjs-admin-cache,target=/build/raksha-portal/apps/admin/.next/cache \
+    pnpm --filter @raksha/admin build
 
 FROM node:20-bookworm-slim AS admin
 
