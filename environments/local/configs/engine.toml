@@ -35,6 +35,7 @@ worker_count = 2
 shutdown_timeout_secs = 10
 rule_state_retention_secs = 3600
 max_rule_states = 100000
+startup_warmup_secs = 60
 
 [observability]
 enable_http_server = true
