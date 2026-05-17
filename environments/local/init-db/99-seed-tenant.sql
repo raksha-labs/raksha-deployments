@@ -49,7 +49,7 @@ INSERT INTO tenants.plan_features (plan_id, feature_key, category, enabled) VALU
     ('pro',        'patterns:create',          'detection',  true),
     ('pro',        'detect:depeg',             'detection',  true),
     ('pro',        'detect:tvl_drop',          'detection',  true),
-    ('pro',        'detect:flash_loan',        'detection',  true),
+    -- detect:flash_loan omitted — flash loan detection is not yet implemented (wip)
     ('pro',        'detect:utilization',       'detection',  true),
     ('pro',        'sim:scenario:create',      'workbench',  true),
     ('pro',        'sim:datasource:playground','workbench',  true),
@@ -67,7 +67,7 @@ INSERT INTO tenants.plan_features (plan_id, feature_key, category, enabled) VALU
     ('enterprise', 'patterns:create',          'detection',  true),
     ('enterprise', 'detect:depeg',             'detection',  true),
     ('enterprise', 'detect:tvl_drop',          'detection',  true),
-    ('enterprise', 'detect:flash_loan',        'detection',  true),
+    -- detect:flash_loan omitted — flash loan detection is not yet implemented (wip)
     ('enterprise', 'detect:utilization',       'detection',  true),
     ('enterprise', 'sim:scenario:create',      'workbench',  true),
     ('enterprise', 'sim:datasource:playground','workbench',  true),
@@ -136,7 +136,7 @@ ON CONFLICT (tenant_id, user_id) DO UPDATE SET role = EXCLUDED.role;
 
 -- ─── KAST tenant (pilot client) ───────────────────────────────────────────
 INSERT INTO tenants.tenants (id, display_name, slug, plan_id, default_redirect)
-VALUES ('20000000-0000-0000-0000-000000000001', 'KAST', 'kast', 'pro', 'dashboard')
+VALUES ('c5b897f1-c8e2-49ea-93c9-0f03a98c373e', 'KAST', 'kast', 'pro', 'dashboard')
 ON CONFLICT (id) DO UPDATE SET
   display_name = 'KAST',
   plan_id = 'pro',
@@ -182,6 +182,6 @@ ON CONFLICT (subject) DO UPDATE SET
   updated_at = now();
 
 INSERT INTO tenants.tenant_members (tenant_id, user_id, role, accepted_at) VALUES
-  ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000010', 'admin',  now()),
-  ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', 'viewer', now())
+  ('c5b897f1-c8e2-49ea-93c9-0f03a98c373e', '00000000-0000-0000-0000-000000000010', 'admin',  now()),
+  ('c5b897f1-c8e2-49ea-93c9-0f03a98c373e', '00000000-0000-0000-0000-000000000011', 'viewer', now())
 ON CONFLICT (tenant_id, user_id) DO UPDATE SET role = EXCLUDED.role;
