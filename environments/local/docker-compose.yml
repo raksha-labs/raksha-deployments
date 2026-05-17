@@ -66,6 +66,7 @@ services:
       - ../../../raksha-simlab/db/control/schema.sql:/schemas/simlab/schema.sql:ro
       - ../../../raksha-ai-agents/db/schema:/schemas/ai:ro
       - ../../../raksha-risk-dashboard/apps/risk-monitor-api/db/control/schema.sql:/schemas/risk-monitor/schema.sql:ro
+      - ../../../raksha-risk-dashboard/apps/risk-scoring-api/db/schema.sql:/schemas/risk-scoring/schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U raksha -d raksha_portal"]
       interval: 5s
@@ -580,6 +581,26 @@ services:
         condition: service_healthy
     restart: "no"
 
+  risk-scoring-db-init:
+    image: postgres:16-alpine
+    environment:
+      PGPASSWORD: raksha
+    volumes:
+      - ../../../raksha-risk-dashboard/apps/risk-scoring-api/db/schema.sql:/schemas/risk-scoring/schema.sql:ro
+    entrypoint: >
+      /bin/sh -c "
+      set -e &&
+      until pg_isready -h postgres -U raksha -d postgres; do sleep 1; done &&
+      psql -h postgres -U raksha -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname = 'raksha_risk_scoring'\" | grep -q 1 ||
+      psql -h postgres -U raksha -d postgres -c \"CREATE DATABASE raksha_risk_scoring OWNER raksha\" &&
+      psql -h postgres -U raksha -d raksha_risk_scoring -f /schemas/risk-scoring/schema.sql &&
+      echo 'risk-scoring db init complete'
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   risk-monitor-api:
     build:
       context: ../../../raksha-risk-dashboard
@@ -608,6 +629,9 @@ services:
       RISK_MONITOR_BASE_RPC_URL: ${RISK_MONITOR_BASE_RPC_URL:-https://mainnet.base.org}
       RISK_MONITOR_PROVISIONER_ADDRESS: ${RISK_MONITOR_PROVISIONER_ADDRESS:-0x18CF8d963E1a727F9bbF3AEffa0Bd04FB4dBdA07}
       RISK_MONITOR_VAULT_ADDRESS: ${RISK_MONITOR_VAULT_ADDRESS:-0x000000000001CdB57E58Fa75Fe420a0f4D6640D5}
+      # ProtocolScoreCache — pulls live scores from risk-scoring-api.
+      RISK_SCORING_API_URL: http://risk-scoring-api:8089
+      RISK_SCORING_PEER_TOKEN: ${PEER_TOKEN_RISK_SCORING:-dev-peer-token-scoring-local-2026}
       LOG_LEVEL: info
     ports:
       - "8088:8088"
@@ -620,11 +644,41 @@ services:
         condition: service_healthy
       stream-control-api:
         condition: service_healthy
+      risk-scoring-api:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8088/healthz >/dev/null || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
+  risk-scoring-api:
+    build:
+      context: ../../../raksha-risk-dashboard
+      dockerfile: apps/risk-scoring-api/Dockerfile
+    environment:
+      RISK_SCORING_LISTEN_ADDR: ":8089"
+      RISK_SCORING_DATABASE_URL: postgres://raksha:raksha@postgres:5432/raksha_risk_scoring?sslmode=disable
+      RISK_SCORING_PEER_TOKEN: ${PEER_TOKEN_RISK_SCORING:-dev-peer-token-scoring-local-2026}
+      RISK_SCORING_ALERT_API_URL: http://alert-control-api:8083
+      RISK_SCORING_ALERT_PEER_TOKEN: ${PEER_TOKEN_NOTIFIER_GATEWAY:-dev-peer-token-notifier-gateway-1}
+      RISK_SCORING_KAST_TENANT_UUID: ${RISK_MONITOR_KAST_TENANT_UUID:-20000000-0000-0000-0000-000000000001}
+      RISK_SCORING_FLOOR_TIMER_SECS: "300"
+      LOG_LEVEL: info
+    ports:
+      - "8089:8089"
+    depends_on:
+      risk-scoring-db-init:
+        condition: service_completed_successfully
+      alert-control-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8089/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
       start_period: 15s
     restart: unless-stopped
 
